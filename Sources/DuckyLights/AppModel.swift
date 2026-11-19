@@ -195,6 +195,13 @@ final class AppModel {
         }
     }
 
+    /// The color the palette is editing: the brush in Custom, else the Primary color.
+    var paletteColor: RGB { canPaint ? brush : settings.primary }
+
+    func pickPaletteColor(_ c: RGB) {
+        if canPaint { brush = c } else { settings.primary = c }
+    }
+
     func fillAll(_ c: RGB) {
         let keys = layout.keys
         editPaint { p in for k in keys { p[k.ledIndex] = c } }

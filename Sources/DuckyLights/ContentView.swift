@@ -137,15 +137,6 @@ struct ControlsPanel: View {
                         .frame(width: 220)
                         Text(model.tool.rawValue).foregroundStyle(.secondary)
                     }
-                    HStack(spacing: 6) {
-                        ForEach(AppModel.palette, id: \.self) { c in
-                            Circle().fill(c.color)
-                                .overlay(Circle().stroke(model.brush == c ? Color.accentColor : .secondary.opacity(0.4),
-                                                         lineWidth: model.brush == c ? 2.5 : 1))
-                                .frame(width: 22, height: 22)
-                                .onTapGesture { model.brush = c }
-                        }
-                    }
                     HStack {
                         Text("Brush")
                         ColorPicker("Brush", selection: rgbBinding(\.brush), supportsOpacity: false).labelsHidden()
@@ -155,9 +146,23 @@ struct ControlsPanel: View {
                     }
                     }
                     .disabled(!model.canPaint)
+                    // Always enabled: in Custom it picks the brush, otherwise the Primary color
+                    // (the Static color, and the main color of most effects).
+                    HStack(spacing: 6) {
+                        ForEach(AppModel.palette, id: \.self) { c in
+                            let picked = model.paletteColor == c
+                            Circle().fill(c.color)
+                                .overlay(Circle().stroke(picked ? Color.accentColor : .secondary.opacity(0.4),
+                                                         lineWidth: picked ? 2.5 : 1))
+                                .frame(width: 22, height: 22)
+                                .contentShape(Circle())
+                                .onTapGesture { model.pickPaletteColor(c) }
+                                .help(model.canPaint ? "Brush color" : "Primary color")
+                        }
+                    }
                     Text(model.canPaint
                          ? "Click or drag over keys. Changes show on the keyboard right away."
-                         : "Pick Custom (paint keys) in the sidebar to paint.")
+                         : "The palette sets the Primary color. Pick Custom (paint keys) to paint single keys.")
                         .font(.caption).foregroundStyle(.secondary)
                         // Not fixedSize: at the narrow widths SwiftUI probes for the window's
                         // minimum size, a fixed-height wrapping text grows very tall.
