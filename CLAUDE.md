@@ -19,6 +19,7 @@ Sources/DuckyKit/                 Library, no UI
   DuckyDevice.swift               direct-mode session, frame sending on a serial queue, hot-plug events
   Effects/Effects.swift           software effects (static, custom paint, breathing, wave, radar, reactive, ripple, heatmap)
   HIDKeyMap.swift                 HID keyboard usage → LED label
+  Profiles.swift                  Profile, ProfileFile (JSON format), ProfileStore
   KeyEventSource.swift            Ducky key-downs via IOHIDManager (Input Monitoring)
 Sources/DuckyLights/              SwiftUI app (AppModel = 60 fps render/send loop + release holds)
 Packaging/Info.plist              bundle plist template for scripts/build-app.sh
@@ -45,7 +46,8 @@ python3 tools/ducky.py vectors > Tests/DuckyKitTests/GoldenVectors.swift   # aft
 ```
 
 ## Status / caveats
-- M3 done (2026-11-19): Reactive/Ripple/Heatmap from the Ducky's own key events. Next is **M4** (profiles, more effects).
+- M4 profiles done (2026-11-19). The owner parked more effects and the URL scheme. Ask what's next.
+- M3 done (2026-11-19): Reactive/Ripple/Heatmap from the Ducky's own key events.
 - Key-event diagnostics: `/usr/bin/log show --last 10m --predicate 'subsystem == "com.glebovsky.DuckyLights"'`. Permission problems are almost always a stale TCC entry from an old signature (see RESEARCH.md).
 - M2 done (2026-11-19): installed as /Applications/Ducky Lights.app.
 - M1 done (2026-11-19), see ROADMAP.
@@ -59,6 +61,7 @@ python3 tools/ducky.py vectors > Tests/DuckyKitTests/GoldenVectors.swift   # aft
 - Keep `README.md` accurate as features land, in the same commit (owner's request, 2026-11-19). Regenerate the screenshots with `.build/debug/DuckyLights --screenshots docs/images` when the UI changes.
 - `DuckyDevice.show()` only sends while in direct mode (`beginDirectMode()` enters it). That way a frame queued behind a `release()` can't take the board back. Keep it that way.
 - The app's window can't be screenshotted here (no Screen Recording permission). Use `--snapshot` to check visuals (it also prints subview sizes), and ask the owner for anything interactive. `DUCKY_DEBUG_LAYOUT=1 .build/debug/DuckyLights` logs the real window and column frames to stdout.
+- Toolbar trap: with no toolbar items the title bar is 28 pt, with any it's 52 pt. Toggling an item on and off moves the whole window content. Put transient bars in a bottom `safeAreaInset` instead.
 - SwiftUI layout trap (2026-11-19): a bare vertical `Divider` in an `HStack`, or a wrapping `Text` with `.fixedSize(vertical: true)`, made the window lay its content out taller than itself, hiding the top under the title bar. Draw column dividers as an `.overlay` and cap caption lines with `lineLimit`.
 - **Always release direct mode** (`DuckyProtocol.exitDirectMode`, `41 00`) on quit, sleep, crash paths you can catch, and when the user clicks "Release to keyboard". Leaving the board in direct mode reportedly disables Fn shortcuts.
 - Protocol changes go into `tools/ducky.py` + `docs/PROTOCOL.md` first. Then regenerate the vectors and update Swift.

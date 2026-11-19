@@ -100,6 +100,15 @@ final class AppModel {
         loginItemStatus = SMAppService.mainApp.status
     }
 
+    // MARK: Profiles state
+
+    private(set) var profileStore: ProfileStore
+    /// The profile last applied. Stays set while you tweak it (then it shows as edited);
+    /// cleared when you pick a plain effect.
+    private(set) var activeProfileID: UUID? { didSet { persist() } }
+    /// Shown as an alert: failed saves, unreadable files, import results.
+    var profileMessage: String?
+
     /// Color used by the brush in Custom mode.
     var brush: RGB = RGB(255, 0, 128)
     var tool: PaintTool = .brush
@@ -137,6 +146,8 @@ final class AppModel {
     /// `hardware: false` renders previews only and never touches the keyboard (snapshots).
     init(hardware: Bool = true) {
         self.hardware = hardware
+        profileStore = ProfileStore(url: hardware ? ProfileStore.defaultURL : nil)
+        loadProfiles()
         restore()
         tick()
         guard hardware else { return }
@@ -195,6 +206,99 @@ final class AppModel {
             if holds.isEmpty && !isConnected { connect() }
         case .disappeared:
             if isConnected { status = .disconnected("Keyboard unplugged. Plug it back in to continue.") }
+        }
+    }
+
+    // MARK: - Profiles
+
+    var profiles: [Profile] { profileStore.profiles }
+    var activeProfile: Profile? { activeProfileID.flatMap { profileStore.profile($0) } }
+    var activeProfileEdited: Bool { activeProfile?.differs(effect: effect, settings: settings) ?? false }
+
+    func selectEffect(_ kind: EffectKind) {
+        activeProfileID = nil
+        effect = kind
+    }
+
+    func applyProfile(_ id: UUID) {
+        guard let p = profileStore.profile(id) else { return }
+        effect = p.effect
+        settings = p.settings
+        activeProfileID = id
+    }
+
+    /// Save what's on the keyboard now as a new profile, and make it the active one.
+    func saveNewProfile(named name: String) {
+        let p = profileStore.add(name: name, effect: effect, settings: settings)
+        activeProfileID = p.id
+        saveProfiles()
+    }
+
+    func updateActiveProfile() {
+        guard let id = activeProfileID else { return }
+        profileStore.update(id, effect: effect, settings: settings)
+        saveProfiles()
+    }
+
+    func revertActiveProfile() {
+        if let id = activeProfileID { applyProfile(id) }
+    }
+
+    func renameProfile(_ id: UUID, to name: String) {
+        profileStore.rename(id, to: name)
+        saveProfiles()
+    }
+
+    func deleteProfile(_ id: UUID) {
+        profileStore.delete(id)
+        if activeProfileID == id { activeProfileID = nil }
+        saveProfiles()
+    }
+
+    func moveProfiles(fromOffsets source: IndexSet, toOffset destination: Int) {
+        profileStore.move(fromOffsets: source, toOffset: destination)
+        saveProfiles()
+    }
+
+    func uniqueProfileName(_ base: String) -> String { profileStore.uniqueName(base) }
+
+    func exportData(_ ids: [UUID]) -> Data {
+        ProfileFile.encode(ids.compactMap { profileStore.profile($0) })
+    }
+
+    func importProfiles(from urls: [URL]) {
+        var added: [Profile] = []
+        var problems: [String] = []
+        for url in urls {
+            do {
+                let d = try ProfileFile.decode(Data(contentsOf: url))
+                added += profileStore.importProfiles(d.profiles)
+                problems += d.skipped.map { "\(url.lastPathComponent): skipped \($0)" }
+            } catch {
+                problems.append("\(url.lastPathComponent): \(error)")
+            }
+        }
+        if !added.isEmpty { saveProfiles() }
+        var msg = added.isEmpty ? "No profiles imported." :
+            "Imported \(added.count) profile\(added.count == 1 ? "" : "s"): \(added.map(\.name).joined(separator: ", "))."
+        if !problems.isEmpty { msg += "\n\n" + problems.joined(separator: "\n") }
+        profileMessage = msg
+    }
+
+    private func saveProfiles() {
+        do { try profileStore.save() } catch { profileMessage = "Couldn't save profiles: \(error.localizedDescription)" }
+    }
+
+    /// A broken profiles.json is moved aside (never overwritten) and the app starts empty.
+    private func loadProfiles() {
+        do {
+            try profileStore.load()
+        } catch {
+            guard let url = profileStore.url else { return }
+            let aside = url.deletingLastPathComponent()
+                .appendingPathComponent("profiles.unreadable-\(Int(Date().timeIntervalSince1970)).json")
+            try? FileManager.default.moveItem(at: url, to: aside)
+            profileMessage = "Couldn't read your profiles (\(error)). The file was kept as \(aside.lastPathComponent)."
         }
     }
 
@@ -364,13 +468,14 @@ final class AppModel {
         var releaseWhenLocked: Bool?
         var releaseInBackground: Bool?
         var openWindowAtLaunch: Bool?
+        var activeProfileID: UUID?
     }
 
     private func persist() {
         guard hardware, !restoring else { return }
         let saved = Saved(effect: effect, settings: settings, layoutVariant: layoutVariant,
                           releaseWhenLocked: releaseWhenLocked, releaseInBackground: releaseInBackground,
-                          openWindowAtLaunch: openWindowAtLaunch)
+                          openWindowAtLaunch: openWindowAtLaunch, activeProfileID: activeProfileID)
         if let data = try? JSONEncoder().encode(saved) {
             UserDefaults.standard.set(data, forKey: "state")
         }
@@ -391,6 +496,7 @@ final class AppModel {
         releaseWhenLocked = s.releaseWhenLocked ?? true
         releaseInBackground = s.releaseInBackground ?? false
         openWindowAtLaunch = s.openWindowAtLaunch ?? true
+        activeProfileID = s.activeProfileID.flatMap { profileStore.profile($0) != nil ? $0 : nil }
     }
 
     /// For README screenshots: look connected without touching hardware.

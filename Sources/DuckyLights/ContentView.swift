@@ -2,18 +2,23 @@ import DuckyKit
 import ServiceManagement
 import SwiftUI
 
+enum SidebarItem: Hashable {
+    case effect(EffectKind)
+    case profile(UUID)
+}
+
 struct ContentView: View {
     @Environment(AppModel.self) private var model
     @State private var showHardwareModes = false
 
     var body: some View {
         @Bindable var model = model
-        NavigationSplitView {
-            List(EffectKind.allCases, selection: Binding<EffectKind?>(
-                get: { model.effect }, set: { if let k = $0 { model.effect = k } })) { kind in
-                Label(kind.rawValue, systemImage: icon(kind)).tag(kind)
-            }
-            .navigationSplitViewColumnWidth(min: 190, ideal: 210)
+        // The sidebar is always shown: no toggle. (Reopening it stuttered in SwiftUI even with an
+        // empty detail column, and there's no reason to hide it.)
+        NavigationSplitView(columnVisibility: .constant(.all)) {
+            ProfileSidebar()
+                .navigationSplitViewColumnWidth(210)
+                .toolbar(removing: .sidebarToggle)
         } detail: {
             VStack(alignment: .leading, spacing: 16) {
                 StatusBar(showHardwareModes: $showHardwareModes)
@@ -27,19 +32,25 @@ struct ContentView: View {
                 // the title bar.
             }
             .padding(20)
-            .background(GeometryReader { g in
-                Color.clear.onAppear { LayoutDebug.log("detail", g) }
-                    .onChange(of: g.frame(in: .global)) { LayoutDebug.log("detail", g) }
-            })
+            .background { if LayoutDebug.on { LayoutDebug.probe("detail") } }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // Pinned to the bottom, in the empty space under the controls, so nothing above
+            // it moves when it appears. (In the toolbar it changed the title bar's height.)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if model.activeProfileEdited { ProfileEditedBar() }
+            }
         }
         .sheet(isPresented: $showHardwareModes) { HardwareModesView() }
-        .background(GeometryReader { g in
-            Color.clear.onAppear { LayoutDebug.log("root", g) }.onChange(of: g.size) { LayoutDebug.log("root", g) }
-        })
+        .alert("Profiles", isPresented: Binding(get: { model.profileMessage != nil },
+                                               set: { if !$0 { model.profileMessage = nil } })) {
+            Button("OK") { model.profileMessage = nil }
+        } message: {
+            Text(model.profileMessage ?? "")
+        }
+        .background { if LayoutDebug.on { LayoutDebug.probe("root") } }
     }
 
-    private func icon(_ k: EffectKind) -> String {
+    static func icon(_ k: EffectKind) -> String {
         switch k {
         case .staticColor: return "square.fill"
         case .custom: return "paintbrush.pointed"
@@ -355,6 +366,14 @@ struct SettingsView: View {
 enum LayoutDebug {
     static let on = ProcessInfo.processInfo.environment["DUCKY_DEBUG_LAYOUT"] != nil
 
+    /// A background that logs its frame. Only attached when `on`: a GeometryReader costs a
+    /// layout pass on every animation frame.
+    @MainActor static func probe(_ name: String) -> some View {
+        GeometryReader { g in
+            Color.clear.onAppear { log(name, g) }.onChange(of: g.frame(in: .global)) { log(name, g) }
+        }
+    }
+
     @MainActor static func log(_ name: String, _ g: GeometryProxy) {
         guard on else { return }
         print("\(name): frame=\(g.frame(in: .global)) safe=\(g.safeAreaInsets)")
@@ -362,5 +381,154 @@ enum LayoutDebug {
             print("  window \(w.title): frame=\(w.frame) content=\(w.contentLayoutRect) contentView=\(w.contentView?.frame ?? .zero) min=\(w.contentMinSize)")
         }
         fflush(stdout)
+    }
+}
+
+/// Effects, then saved profiles. Picking an effect leaves the active profile; picking a
+/// profile applies it.
+private struct ProfileSidebar: View {
+    @Environment(AppModel.self) private var model
+    @State private var naming: Naming?
+    @State private var nameText = ""
+
+    private enum Naming: Identifiable {
+        case new
+        case rename(UUID)
+        var id: String { if case .rename(let u) = self { return u.uuidString } else { return "new" } }
+    }
+
+    var body: some View {
+        List(selection: selection) {
+            Section("Effects") {
+                ForEach(EffectKind.allCases) { kind in
+                    Label(kind.rawValue, systemImage: ContentView.icon(kind)).tag(SidebarItem.effect(kind))
+                }
+            }
+            Section("Profiles") {
+                if model.profiles.isEmpty {
+                    Text("Set up a look, then click + to save it.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                ForEach(model.profiles) { p in
+                    HStack {
+                        Label(p.name, systemImage: "bookmark")
+                        if p.id == model.activeProfileID && model.activeProfileEdited {
+                            Spacer()
+                            Text("Edited").font(.caption2).foregroundStyle(.secondary)
+                        }
+                    }
+                    .tag(SidebarItem.profile(p.id))
+                    .contextMenu { menu(for: p) }
+                }
+                .onMove { model.moveProfiles(fromOffsets: $0, toOffset: $1) }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            HStack(spacing: 4) {
+                Button { startNaming(.new) } label: { Image(systemName: "plus") }
+                    .help("Save the current look as a profile")
+                Menu {
+                    Button("Import Profiles…") { importProfiles() }
+                    Button("Export All Profiles…") { export(model.profiles.map(\.id), suggested: "Ducky Lights profiles") }
+                        .disabled(model.profiles.isEmpty)
+                } label: { Image(systemName: "ellipsis.circle") }
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                Spacer()
+            }
+            .buttonStyle(.borderless)
+            .padding(.horizontal, 12).padding(.vertical, 8)
+        }
+        .alert(naming.map { if case .new = $0 { return "Save Profile" } else { return "Rename Profile" } } ?? "",
+               isPresented: Binding(get: { naming != nil }, set: { if !$0 { naming = nil } })) {
+            TextField("Name", text: $nameText)
+            Button("Cancel", role: .cancel) { naming = nil }
+            Button(naming.map { if case .new = $0 { return "Save" } else { return "Rename" } } ?? "OK") { finishNaming() }
+        } message: {
+            if case .new = naming { Text("Saves the current effect, colors and painted keys.") }
+        }
+    }
+
+    private var selection: Binding<SidebarItem?> {
+        Binding(
+            get: { model.activeProfileID.map { .profile($0) } ?? .effect(model.effect) },
+            set: { item in
+                switch item {
+                case .effect(let k): model.selectEffect(k)
+                case .profile(let id): model.applyProfile(id)
+                case nil: break
+                }
+            })
+    }
+
+    @ViewBuilder
+    private func menu(for p: Profile) -> some View {
+        Button("Apply") { model.applyProfile(p.id) }
+        if p.id == model.activeProfileID {
+            Button("Update with Current Settings") { model.updateActiveProfile() }
+                .disabled(!model.activeProfileEdited)
+        }
+        Button("Rename…") { startNaming(.rename(p.id)) }
+        Button("Export…") { export([p.id], suggested: p.name) }
+        Divider()
+        Button("Delete", role: .destructive) { model.deleteProfile(p.id) }
+    }
+
+    private func startNaming(_ n: Naming) {
+        switch n {
+        case .new: nameText = model.uniqueProfileName(model.effect.rawValue)
+        case .rename(let id): nameText = model.profiles.first { $0.id == id }?.name ?? ""
+        }
+        naming = n
+    }
+
+    private func finishNaming() {
+        switch naming {
+        case .new: model.saveNewProfile(named: nameText)
+        case .rename(let id): model.renameProfile(id, to: nameText)
+        case nil: break
+        }
+        naming = nil
+    }
+
+    private func export(_ ids: [UUID], suggested: String) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = suggested + ".json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do { try model.exportData(ids).write(to: url, options: .atomic) } catch {
+            model.profileMessage = "Couldn't export: \(error.localizedDescription)"
+        }
+    }
+
+    private func importProfiles() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = true
+        guard panel.runModal() == .OK else { return }
+        model.importProfiles(from: panel.urls)
+    }
+}
+
+/// Bottom bar while the active profile has unsaved tweaks.
+private struct ProfileEditedBar: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(spacing: 8) {
+                Image(systemName: "bookmark.fill").foregroundStyle(.tint)
+                Text("\u{201C}\(model.activeProfile?.name ?? "")\u{201D} has unsaved changes")
+                Spacer()
+                Button("Revert") { model.revertActiveProfile() }
+                    .help("Go back to the saved profile")
+                Button("Update Profile") { model.updateActiveProfile() }
+                    .buttonStyle(.borderedProminent)
+                    .help("Save the current settings into this profile")
+            }
+            .padding(.horizontal, 20).padding(.vertical, 10)
+        }
+        .background(.bar)
     }
 }

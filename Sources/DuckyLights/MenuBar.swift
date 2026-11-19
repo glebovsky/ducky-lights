@@ -65,10 +65,19 @@ struct MenuBarMenu: View {
         }
         .keyboardShortcut("o")
         Divider()
-        Picker("Effect", selection: $model.effect) {
-            ForEach(EffectKind.allCases) { Text($0.rawValue).tag($0) }
+        Picker("Effect", selection: Binding(get: { model.activeProfileID == nil ? model.effect : nil },
+                                            set: { if let k = $0 { model.selectEffect(k) } })) {
+            ForEach(EffectKind.allCases) { Text($0.rawValue).tag(Optional($0)) }
         }
         .pickerStyle(.inline)
+        if !model.profiles.isEmpty {
+            Divider()
+            Picker("Profiles", selection: Binding(get: { model.activeProfileID },
+                                                  set: { if let id = $0 { model.applyProfile(id) } })) {
+                ForEach(model.profiles) { Text($0.name).tag(Optional($0.id)) }
+            }
+            .pickerStyle(.inline)
+        }
         Divider()
         if model.isReleased {
             Button("Take control") { model.resumeControl() }

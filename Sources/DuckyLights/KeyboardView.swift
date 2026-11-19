@@ -13,7 +13,8 @@ struct KeyboardView: View {
 
     var body: some View {
         let layout = model.layout
-        Canvas { ctx, size in
+        // Drawn off the main thread, so resizing (e.g. the sidebar animation) stays smooth.
+        Canvas(rendersAsynchronously: true) { ctx, size in
             let m = Metrics(size: size, layout: layout)
             drawCase(&ctx, m)
             drawGlow(&ctx, m, layout)

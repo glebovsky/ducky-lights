@@ -168,8 +168,19 @@ enum Snapshots {
         window.contentView = NSHostingView(rootView: ContentView().environment(model))
         window.orderFrontRegardless()
 
+        // Offscreen (not a SwiftUI Window scene) the split view ignores the sidebar's column
+        // width; set the divider like the real window has it.
+        func splitView(in v: NSView) -> NSSplitView? {
+            if let s = v as? NSSplitView { return s }
+            for sub in v.subviews { if let s = splitView(in: sub) { return s } }
+            return nil
+        }
         func shot(_ name: String) {
-            RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            if let content = window.contentView, let split = splitView(in: content) {
+                split.setPosition(210, ofDividerAt: 0)
+            }
+            RunLoop.main.run(until: Date().addingTimeInterval(0.4))
             // The frame view (contentView's superview) includes the title bar and traffic lights.
             guard let view = window.contentView?.superview ?? window.contentView,
                   let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
@@ -181,6 +192,15 @@ enum Snapshots {
 
         model.settings.speed = 1
         model.settings.brightness = 1
+        // Sample profiles so the sidebar shows what they look like.
+        model.settings.primary = RGB(255, 140, 0)
+        model.previewFrame(.staticColor, at: 0)
+        model.saveNewProfile(named: "Focus")
+        model.previewFrame(.breathing, at: 0)
+        model.settings.primary = RGB(0, 170, 255)
+        model.saveNewProfile(named: "Evening")
+
+        model.selectEffect(.wave)
         model.previewFrame(.wave, at: 1.3)
         shot("app-wave.png")
 
@@ -193,7 +213,13 @@ enum Snapshots {
         model.settings.paint[layout.key(labeled: "Esc")!.ledIndex] = RGB(255, 0, 0)
         model.brush = RGB(255, 0, 128)
         model.previewFrame(.custom, at: 0)
+        model.saveNewProfile(named: "Gaming")
         shot("app-custom.png")
+        model.settings.paint[layout.key(labeled: "Space")!.ledIndex] = RGB(0, 255, 120)
+        model.previewFrame(.custom, at: 0)
+        shot("app-profile-edited.png")
+
+        model.selectEffect(.heatmap)
 
         // Heatmap from a made-up typing session: English text, spread over the last minute.
         model.previewFrame(.heatmap, at: 0)
@@ -247,7 +273,7 @@ enum Snapshots {
         func measure(_ name: String, _ v: some View) {
             let hc = NSHostingController(rootView: AnyView(v.environment(model)))
             for size in [CGSize(width: 729, height: 674), CGSize(width: 729, height: CGFloat.infinity),
-                         CGSize(width: CGFloat.infinity, height: CGFloat.infinity)] {
+                         CGSize(width: CGFloat.infinity, height: CGFloat.infinity), CGSize(width: 0, height: 674)] {
                 print("\(name) in \(size): \(hc.sizeThatFits(in: size))")
             }
         }
@@ -260,6 +286,17 @@ enum Snapshots {
         print("content ideal (unbounded): \(hc.sizeThatFits(in: CGSize(width: CGFloat.infinity, height: .infinity)))")
 
         model.previewFrame(.wave, at: 1.3)
+        do {
+            func once(_ w: CGFloat) {
+                let r = ImageRenderer(content: KeyboardView().environment(model).frame(width: w, height: w * 0.38))
+                r.scale = 2
+                _ = r.cgImage
+            }
+            once(760)
+            let start = Date()
+            for i in 0..<30 { model.previewFrame(.wave, at: Double(i) / 60); once(700 + CGFloat(i) * 3) }
+            print(String(format: "keyboard draw: %.1f ms/frame", Date().timeIntervalSince(start) / 30 * 1000))
+        }
         save("board-wave-ansi.png", board())
 
         model.layoutVariant = .iso

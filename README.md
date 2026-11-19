@@ -12,13 +12,16 @@ Pick an effect, tune its color, speed and brightness, or paint keys one by one. 
 
 ![Typing Heatmap: the most-used keys glow hottest](docs/images/app-heatmap.png)
 
+![A profile with unsaved changes: Revert or Update Profile](docs/images/app-profile-edited.png)
+
 ## Features
 
 - **Effects:** Static, Custom (paint keys), Breathing, Color Cycle, Rainbow Wave, Radar, Raindrop, Off. Each effect shows only the controls it uses.
 - **Effects that react to typing:** Reactive (pressed keys flash and fade), Ripple (rings spread from each key), Typing Heatmap (the keys you use most glow hot, then cool down). Only keys on the Ducky count, not the laptop keyboard.
 - **Painting** (Custom effect): brush, eraser, eyedropper, fill row, fill column. Click or drag over keys. Hovering shows which keys a click will change.
+- **Profiles:** save a look (effect, colors, painted keys) under a name, and switch between looks from the sidebar or the menu bar duck. Tweak an active profile and a bar at the bottom offers **Revert** or **Update Profile**. Right-click to rename, export or delete. Import and export are in the sidebar's ⋯ menu.
 - **Live preview** drawn like the real board: shine-through legends, LED light bleeding between the keys. ANSI or ISO layout (Settings).
-- **Menu bar duck:** open the window, switch effects, hand control back to the keyboard, quit. Closing the window keeps the app running there.
+- **Menu bar duck:** open the window, switch effects or profiles, hand control back to the keyboard, quit. Closing the window keeps the app running there.
 - **Plays nice with the keyboard:** it hands lighting back to the firmware on quit, Ctrl-C/kill, sleep and screen lock, and takes it back on wake and unlock. Unplug and replug the keyboard and it carries on by itself.
 - **Launch at login**, with an option to start quietly in the menu bar.
 - Smooth animation: rendered at 60 fps. The USB link tops out around 95 fps.
@@ -46,6 +49,15 @@ Run the same command again to update. It quits the running copy first, which han
 ## Using it
 
 - **Settings (⌘,):** keyboard layout (ANSI/ISO), release while the screen is locked (on by default), release while the app is in the background (off), launch at login, open the window at launch.
+- **Profiles** are saved in `~/Library/Application Support/Ducky Lights/profiles.json`. Exported files use the same format and are meant to be readable and editable:
+
+  ```json
+  { "format": "ducky-lights-profiles", "version": 1,
+    "profiles": [ { "name": "Gaming", "effect": "Custom (paint keys)", "background": "000019",
+                    "brightness": 1, "paint": { "W": "ff0080", "A": "ff0080", "Esc": "ff0000" } } ] }
+  ```
+
+  Importing always adds copies (it never overwrites), and anything unrecognized is skipped and listed. If `profiles.json` can't be read, it's kept aside as `profiles.unreadable-….json` rather than overwritten.
 - **Release to keyboard** (window or duck menu) gives lighting back to the keyboard's own modes. While the app is in control, the keyboard's Fn lighting shortcuts (Fn+F10 and friends) don't respond. That's how the keyboard behaves, not a bug. **Hardware modes…** lists those shortcuts.
 - **Input Monitoring shows "on" but the app says it's off:** that entry belongs to an older build with a different signature. Remove it with − in Privacy & Security (or run `tccutil reset ListenEvent com.glebovsky.DuckyLights`), then allow again.
 - If the app ever crashes hard and leaves the board stuck, run `swift run duckyctl release`.
@@ -88,7 +100,7 @@ swift build --product DuckyLights && .build/debug/DuckyLights --screenshots docs
 
 ## Status
 
-M0 (hardware bring-up), M1 (usable app), M2 (real macOS app) and M3 (effects that react to typing) are done. Next is M4: named profiles and more effects. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
+M0 (hardware bring-up), M1 (usable app), M2 (real macOS app), M3 (effects that react to typing) and M4's named profiles are done. More effects and a URL scheme are parked. M5 (selecting the keyboard's own modes) is research. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ## Credits
 
