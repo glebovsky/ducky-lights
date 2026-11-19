@@ -49,7 +49,8 @@ python3 tools/ducky.py vectors > Tests/DuckyKitTests/GoldenVectors.swift   # aft
 
 ## Rules
 - `DuckyDevice.show()` only sends while in direct mode (`beginDirectMode()` enters it). That way a frame queued behind a `release()` can't take the board back. Keep it that way.
-- The app's window can't be screenshotted here (no Screen Recording permission). Use `--snapshot` to check visuals, and ask the owner for anything interactive.
+- The app's window can't be screenshotted here (no Screen Recording permission). Use `--snapshot` to check visuals (it also prints subview sizes), and ask the owner for anything interactive. `DUCKY_DEBUG_LAYOUT=1 .build/debug/DuckyLights` logs the real window and column frames to stdout.
+- SwiftUI layout trap (2026-11-19): a bare vertical `Divider` in an `HStack`, or a wrapping `Text` with `.fixedSize(vertical: true)`, made the window lay its content out taller than itself, hiding the top under the title bar. Draw column dividers as an `.overlay` and cap caption lines with `lineLimit`.
 - **Always release direct mode** (`DuckyProtocol.exitDirectMode`, `41 00`) on quit, sleep, crash paths you can catch, and when the user clicks "Release to keyboard". Leaving the board in direct mode reportedly disables Fn shortcuts.
 - Protocol changes go into `tools/ducky.py` + `docs/PROTOCOL.md` first. Then regenerate the vectors and update Swift.
 - Keep `DuckyProtocol` pure (no IOKit) so it stays unit-testable.

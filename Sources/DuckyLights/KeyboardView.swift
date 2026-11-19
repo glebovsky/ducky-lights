@@ -17,7 +17,7 @@ struct KeyboardView: View {
             let m = Metrics(size: size, layout: layout)
             drawCase(&ctx, m)
             drawGlow(&ctx, m, layout)
-            let targets = hovered.map { model.targets(for: $0) } ?? []
+            let targets = model.canPaint ? (hovered.map { model.targets(for: $0) } ?? []) : []
             for key in layout.keys {
                 drawKey(&ctx, m, key, led: model.preview[key.ledIndex] ?? .black,
                         highlighted: targets.contains(key.ledIndex))
@@ -39,6 +39,8 @@ struct KeyboardView: View {
                         if case .active(let p) = phase { hovered = key(at: p, size: geo.size) } else { hovered = nil }
                     }
             }
+            // Outside Custom the board is display-only, so a stray click can't switch effects.
+            .allowsHitTesting(model.canPaint)
         }
     }
 

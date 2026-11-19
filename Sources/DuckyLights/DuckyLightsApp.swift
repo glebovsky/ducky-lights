@@ -66,6 +66,7 @@ struct DuckyLightsApp: App {
                 .onAppear { NSApp.setActivationPolicy(.regular) }
                 .onDisappear { NSApp.setActivationPolicy(.accessory) }
         }
+        .defaultSize(width: 1100, height: 720)
         .windowResizability(.contentMinSize)
 
         MenuBarExtra {
@@ -100,6 +101,22 @@ enum Snapshots {
         func board() -> some View {
             KeyboardView().environment(model).frame(width: 1300, height: 480).padding(20).background(Color(white: 0.2))
         }
+
+        // Layout sanity check: the window's content must fit its minimum size.
+        func measure(_ name: String, _ v: some View) {
+            let hc = NSHostingController(rootView: AnyView(v.environment(model)))
+            for size in [CGSize(width: 729, height: 674), CGSize(width: 729, height: CGFloat.infinity),
+                         CGSize(width: CGFloat.infinity, height: CGFloat.infinity)] {
+                print("\(name) in \(size): \(hc.sizeThatFits(in: size))")
+            }
+        }
+        measure("status", StatusBar(showHardwareModes: .constant(false)))
+        measure("keyboard", KeyboardView())
+        measure("controls", ControlsPanel())
+        measure("controls-fixed", ControlsPanel().fixedSize(horizontal: false, vertical: true))
+        measure("content", ContentView())
+        let hc = NSHostingController(rootView: AnyView(ContentView().environment(model)))
+        print("content ideal (unbounded): \(hc.sizeThatFits(in: CGSize(width: CGFloat.infinity, height: .infinity)))")
 
         model.previewFrame(.wave, at: 1.3)
         save("board-wave-ansi.png", board())

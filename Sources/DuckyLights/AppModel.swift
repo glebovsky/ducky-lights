@@ -154,27 +154,36 @@ final class AppModel {
 
     // MARK: - Painting
 
+    /// Painting only works in the Custom effect; other effects ignore clicks on the board.
+    var canPaint: Bool { effect == .custom }
+
     /// Apply the current tool to `key`. `dragging` is true for keys reached by dragging,
     /// where only brush and eraser keep working.
     func apply(to key: KeyInfo, dragging: Bool) {
+        guard canPaint else { return }
         switch tool {
         case .brush:
-            settings.paint[key.ledIndex] = brush
+            editPaint { $0[key.ledIndex] = brush }
         case .eraser:
-            settings.paint[key.ledIndex] = nil
+            editPaint { $0[key.ledIndex] = nil }
         case .eyedropper:
             guard !dragging else { return }
             brush = preview[key.ledIndex] ?? .black
             tool = .brush
-            return
         case .fillRow:
             guard !dragging else { return }
-            for k in layout.row(of: key) { settings.paint[k.ledIndex] = brush }
+            let keys = layout.row(of: key)
+            editPaint { p in for k in keys { p[k.ledIndex] = brush } }
         case .fillColumn:
             guard !dragging else { return }
-            for k in layout.column(of: key) { settings.paint[k.ledIndex] = brush }
+            let keys = layout.column(of: key)
+            editPaint { p in for k in keys { p[k.ledIndex] = brush } }
         }
-        if effect != .custom { effect = .custom }
+    }
+
+    private func editPaint(_ change: (inout [Int: RGB]) -> Void) {
+        guard canPaint else { return }
+        change(&settings.paint)
     }
 
     /// Keys the current tool would change if `key` were clicked (for hover highlighting).
@@ -187,11 +196,11 @@ final class AppModel {
     }
 
     func fillAll(_ c: RGB) {
-        for k in layout.keys { settings.paint[k.ledIndex] = c }
-        effect = .custom
+        let keys = layout.keys
+        editPaint { p in for k in keys { p[k.ledIndex] = c } }
     }
 
-    func clearPaint() { settings.paint = [:] }
+    func clearPaint() { editPaint { $0 = [:] } }
 
     // MARK: - Frame loop
 

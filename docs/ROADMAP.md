@@ -14,7 +14,7 @@ Done 2026-11-19, except the Python step and Mac sleep.
 ## M1 — Usable app
 Done 2026-11-19 and checked on the board, except Mac sleep (not tried yet).
 - [x] `swift run DuckyLights`: sidebar of effects, live keyboard preview, palette, color pickers, speed/brightness. Renders at 60 fps.
-- [x] Click/drag to paint keys (Custom effect). Tools: brush, eraser, eyedropper, fill row, fill column. Hovering highlights the keys a click will change.
+- [x] Click/drag to paint keys (Custom effect). Tools: brush, eraser, eyedropper, fill row, fill column. Hovering highlights the keys a click will change. Outside Custom the preview ignores clicks and the paint controls are disabled. That's the owner's call: clicks used to jump to Custom, and a draft-plus-Apply flow was tried and dropped.
 - [x] Preview looks like the real board: dark case, LED light bleeding onto the plate, sculpted caps, shine-through legends (shifted symbols stacked). ANSI/ISO in Settings (1.25u Left Shift, tall Enter, `ISO #`/`ISO \`).
 - [x] Hot-plug via IOHIDManager matching/removal callbacks. Unplug shows a status; replug resumes on its own.
 - [x] Release on quit, Ctrl-C/SIGTERM, uncaught exceptions, sleep and screen lock (lock is a setting, on by default). Optional release while the app is in the background (off by default). Control comes back on wake/unlock/activate.

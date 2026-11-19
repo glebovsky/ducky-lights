@@ -17,11 +17,25 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 16) {
                 StatusBar(showHardwareModes: $showHardwareModes)
                 KeyboardView()
+                    // Finite ideal size: an aspect-fit view offered infinite width reports
+                    // infinite size, and the window then lays out taller than itself.
+                    .frame(maxWidth: 1600)
                 ControlsPanel()
+                // Nothing vertically greedy in this column (Spacer, a bare vertical Divider):
+                // it made the content lay out taller than the window, hiding the top under
+                // the title bar.
             }
             .padding(20)
+            .background(GeometryReader { g in
+                Color.clear.onAppear { LayoutDebug.log("detail", g) }
+                    .onChange(of: g.frame(in: .global)) { LayoutDebug.log("detail", g) }
+            })
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .sheet(isPresented: $showHardwareModes) { HardwareModesView() }
+        .background(GeometryReader { g in
+            Color.clear.onAppear { LayoutDebug.log("root", g) }.onChange(of: g.size) { LayoutDebug.log("root", g) }
+        })
     }
 
     private func icon(_ k: EffectKind) -> String {
@@ -40,7 +54,7 @@ struct ContentView: View {
     }
 }
 
-private struct StatusBar: View {
+struct StatusBar: View {
     @Environment(AppModel.self) private var model
     @Binding var showHardwareModes: Bool
 
@@ -49,7 +63,9 @@ private struct StatusBar: View {
             switch model.status {
             case .connected(let name):
                 Label(name, systemImage: "keyboard").foregroundStyle(.green)
-                Text(String(format: "%.0f fps", model.fps)).monospacedDigit().foregroundStyle(.secondary)
+                if model.effect.isAnimated {
+                    Text(String(format: "%.0f fps", model.fps)).monospacedDigit().foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button("Release to keyboard") { model.releaseToHardware() }
                     .help("Exit direct mode so the keyboard's own effects and Fn shortcuts work again")
@@ -67,51 +83,106 @@ private struct StatusBar: View {
     }
 }
 
-private struct ControlsPanel: View {
+struct ControlsPanel: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         @Bindable var model = model
-        HStack(alignment: .top, spacing: 28) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Colors").font(.headline)
-                ColorPicker("Primary", selection: rgbBinding(\.settings.primary), supportsOpacity: false)
-                ColorPicker("Secondary", selection: rgbBinding(\.settings.secondary), supportsOpacity: false)
-                ColorPicker("Background", selection: rgbBinding(\.settings.background), supportsOpacity: false)
-            }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Paint").font(.headline)
-                Picker("Tool", selection: $model.tool) {
-                    ForEach(PaintTool.allCases) { t in
-                        Image(systemName: t.systemImage).help(t.rawValue).tag(t)
+        HStack(alignment: .top, spacing: 0) {
+            // Left: what the effects use.
+            VStack(alignment: .leading, spacing: 18) {
+                titled("Colors") {
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                        colorRow("Primary", \.settings.primary)
+                        colorRow("Secondary", \.settings.secondary)
+                        colorRow("Background", \.settings.background)
                     }
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 240)
-                HStack(spacing: 6) {
-                    ForEach(AppModel.palette, id: \.self) { c in
-                        Circle().fill(c.color)
-                            .overlay(Circle().stroke(.white.opacity(model.brush == c ? 0.9 : 0.2), lineWidth: 2))
-                            .frame(width: 22, height: 22)
-                            .onTapGesture { model.brush = c; model.settings.primary = c }
+                titled("Animation") {
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                        GridRow {
+                            Text("Speed")
+                            Slider(value: $model.settings.speed, in: 0.1...3).frame(width: 180)
+                            Text(String(format: "%.1f×", model.settings.speed))
+                                .monospacedDigit().foregroundStyle(.secondary)
+                        }
+                        GridRow {
+                            Text("Brightness")
+                            Slider(value: $model.settings.brightness, in: 0...1).frame(width: 180)
+                            Text("\(Int((model.settings.brightness * 100).rounded()))%")
+                                .monospacedDigit().foregroundStyle(.secondary)
+                        }
+                    }
+                    if model.effect.needsKeyEvents {
+                        Text("Reactive effects need key events, not wired up yet (ROADMAP M3).")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
-                ColorPicker("Brush (click or drag over keys)", selection: rgbBinding(\.brush), supportsOpacity: false)
-                HStack {
-                    Button("Fill all with brush") { model.fillAll(model.brush) }
-                    Button("Clear paint") { model.clearPaint() }
-                }
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Animation").font(.headline)
-                LabeledContent("Speed") { Slider(value: $model.settings.speed, in: 0.1...3).frame(width: 180) }
-                LabeledContent("Brightness") { Slider(value: $model.settings.brightness, in: 0...1).frame(width: 180) }
-                if model.effect.needsKeyEvents {
-                    Text("Reactive effects need key events — not wired up yet (see ROADMAP M3).")
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.trailing, 24)
+
+            // Right: painting keys for the Custom effect.
+            VStack(alignment: .leading, spacing: 10) {
+                titled("Paint") {
+                    Group {
+                    HStack(spacing: 10) {
+                        Picker("Tool", selection: $model.tool) {
+                            ForEach(PaintTool.allCases) { t in
+                                Image(systemName: t.systemImage).help(t.rawValue).tag(t)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(width: 220)
+                        Text(model.tool.rawValue).foregroundStyle(.secondary)
+                    }
+                    HStack(spacing: 6) {
+                        ForEach(AppModel.palette, id: \.self) { c in
+                            Circle().fill(c.color)
+                                .overlay(Circle().stroke(model.brush == c ? Color.accentColor : .secondary.opacity(0.4),
+                                                         lineWidth: model.brush == c ? 2.5 : 1))
+                                .frame(width: 22, height: 22)
+                                .onTapGesture { model.brush = c }
+                        }
+                    }
+                    HStack {
+                        Text("Brush")
+                        ColorPicker("Brush", selection: rgbBinding(\.brush), supportsOpacity: false).labelsHidden()
+                        Spacer().frame(width: 16)
+                        Button("Fill all") { model.fillAll(model.brush) }
+                        Button("Clear") { model.clearPaint() }
+                    }
+                    }
+                    .disabled(!model.canPaint)
+                    Text(model.canPaint
+                         ? "Click or drag over keys. Changes show on the keyboard right away."
+                         : "Pick Custom (paint keys) in the sidebar to paint.")
                         .font(.caption).foregroundStyle(.secondary)
+                        // Not fixedSize: at the narrow widths SwiftUI probes for the window's
+                        // minimum size, a fixed-height wrapping text grows very tall.
+                        .lineLimit(3)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 24)
+            // As an overlay the divider is only as tall as this column.
+            .overlay(alignment: .leading) { Divider() }
+        }
+    }
+
+    @ViewBuilder
+    private func titled<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.headline)
+            content()
+        }
+    }
+
+    private func colorRow(_ title: String, _ path: ReferenceWritableKeyPath<AppModel, RGB>) -> some View {
+        GridRow {
+            Text(title)
+            ColorPicker(title, selection: rgbBinding(path), supportsOpacity: false).labelsHidden()
         }
     }
 
@@ -180,5 +251,19 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 520)
+    }
+}
+
+/// `DUCKY_DEBUG_LAYOUT=1` prints view and window geometry, for layout bugs we can't screenshot.
+enum LayoutDebug {
+    static let on = ProcessInfo.processInfo.environment["DUCKY_DEBUG_LAYOUT"] != nil
+
+    @MainActor static func log(_ name: String, _ g: GeometryProxy) {
+        guard on else { return }
+        print("\(name): frame=\(g.frame(in: .global)) safe=\(g.safeAreaInsets)")
+        for w in NSApp.windows where w.isVisible {
+            print("  window \(w.title): frame=\(w.frame) content=\(w.contentLayoutRect) contentView=\(w.contentView?.frame ?? .zero) min=\(w.contentMinSize)")
+        }
+        fflush(stdout)
     }
 }
