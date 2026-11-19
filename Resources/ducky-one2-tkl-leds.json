@@ -1,0 +1,536 @@
+[
+ {
+  "index": 0,
+  "label": "Esc",
+  "row": 0,
+  "col": 0
+ },
+ {
+  "index": 1,
+  "label": "`",
+  "row": 1,
+  "col": 0
+ },
+ {
+  "index": 2,
+  "label": "Tab",
+  "row": 2,
+  "col": 0
+ },
+ {
+  "index": 3,
+  "label": "Caps Lock",
+  "row": 3,
+  "col": 0
+ },
+ {
+  "index": 4,
+  "label": "Left Shift",
+  "row": 4,
+  "col": 0
+ },
+ {
+  "index": 5,
+  "label": "Left Ctrl",
+  "row": 5,
+  "col": 0
+ },
+ {
+  "index": 7,
+  "label": "1",
+  "row": 1,
+  "col": 1
+ },
+ {
+  "index": 8,
+  "label": "Q",
+  "row": 2,
+  "col": 2
+ },
+ {
+  "index": 9,
+  "label": "A",
+  "row": 3,
+  "col": 2
+ },
+ {
+  "index": 10,
+  "label": "ISO \\",
+  "row": 4,
+  "col": 1
+ },
+ {
+  "index": 11,
+  "label": "Left Win/Cmd",
+  "row": 5,
+  "col": 1
+ },
+ {
+  "index": 12,
+  "label": "F1",
+  "row": 0,
+  "col": 2
+ },
+ {
+  "index": 13,
+  "label": "2",
+  "row": 1,
+  "col": 2
+ },
+ {
+  "index": 14,
+  "label": "W",
+  "row": 2,
+  "col": 3
+ },
+ {
+  "index": 15,
+  "label": "S",
+  "row": 3,
+  "col": 3
+ },
+ {
+  "index": 16,
+  "label": "Z",
+  "row": 4,
+  "col": 2
+ },
+ {
+  "index": 17,
+  "label": "Left Alt/Opt",
+  "row": 5,
+  "col": 2
+ },
+ {
+  "index": 18,
+  "label": "F2",
+  "row": 0,
+  "col": 3
+ },
+ {
+  "index": 19,
+  "label": "3",
+  "row": 1,
+  "col": 3
+ },
+ {
+  "index": 20,
+  "label": "E",
+  "row": 2,
+  "col": 4
+ },
+ {
+  "index": 21,
+  "label": "D",
+  "row": 3,
+  "col": 4
+ },
+ {
+  "index": 22,
+  "label": "X",
+  "row": 4,
+  "col": 3
+ },
+ {
+  "index": 24,
+  "label": "F3",
+  "row": 0,
+  "col": 4
+ },
+ {
+  "index": 25,
+  "label": "4",
+  "row": 1,
+  "col": 4
+ },
+ {
+  "index": 26,
+  "label": "R",
+  "row": 2,
+  "col": 5
+ },
+ {
+  "index": 27,
+  "label": "F",
+  "row": 3,
+  "col": 5
+ },
+ {
+  "index": 28,
+  "label": "C",
+  "row": 4,
+  "col": 4
+ },
+ {
+  "index": 30,
+  "label": "F4",
+  "row": 0,
+  "col": 5
+ },
+ {
+  "index": 31,
+  "label": "5",
+  "row": 1,
+  "col": 5
+ },
+ {
+  "index": 32,
+  "label": "T",
+  "row": 2,
+  "col": 7
+ },
+ {
+  "index": 33,
+  "label": "G",
+  "row": 3,
+  "col": 7
+ },
+ {
+  "index": 34,
+  "label": "V",
+  "row": 4,
+  "col": 5
+ },
+ {
+  "index": 37,
+  "label": "6",
+  "row": 1,
+  "col": 6
+ },
+ {
+  "index": 38,
+  "label": "Y",
+  "row": 2,
+  "col": 8
+ },
+ {
+  "index": 39,
+  "label": "H",
+  "row": 3,
+  "col": 8
+ },
+ {
+  "index": 40,
+  "label": "B",
+  "row": 4,
+  "col": 7
+ },
+ {
+  "index": 41,
+  "label": "Space",
+  "row": 5,
+  "col": 7
+ },
+ {
+  "index": 42,
+  "label": "F5",
+  "row": 0,
+  "col": 7
+ },
+ {
+  "index": 43,
+  "label": "7",
+  "row": 1,
+  "col": 7
+ },
+ {
+  "index": 44,
+  "label": "U",
+  "row": 2,
+  "col": 9
+ },
+ {
+  "index": 45,
+  "label": "J",
+  "row": 3,
+  "col": 9
+ },
+ {
+  "index": 46,
+  "label": "N",
+  "row": 4,
+  "col": 9
+ },
+ {
+  "index": 48,
+  "label": "F6",
+  "row": 0,
+  "col": 8
+ },
+ {
+  "index": 49,
+  "label": "8",
+  "row": 1,
+  "col": 8
+ },
+ {
+  "index": 50,
+  "label": "I",
+  "row": 2,
+  "col": 10
+ },
+ {
+  "index": 51,
+  "label": "K",
+  "row": 3,
+  "col": 10
+ },
+ {
+  "index": 52,
+  "label": "M",
+  "row": 4,
+  "col": 10
+ },
+ {
+  "index": 54,
+  "label": "F7",
+  "row": 0,
+  "col": 9
+ },
+ {
+  "index": 55,
+  "label": "9",
+  "row": 1,
+  "col": 9
+ },
+ {
+  "index": 56,
+  "label": "O",
+  "row": 2,
+  "col": 11
+ },
+ {
+  "index": 57,
+  "label": "L",
+  "row": 3,
+  "col": 11
+ },
+ {
+  "index": 58,
+  "label": ",",
+  "row": 4,
+  "col": 11
+ },
+ {
+  "index": 60,
+  "label": "F8",
+  "row": 0,
+  "col": 10
+ },
+ {
+  "index": 61,
+  "label": "0",
+  "row": 1,
+  "col": 10
+ },
+ {
+  "index": 62,
+  "label": "P",
+  "row": 2,
+  "col": 12
+ },
+ {
+  "index": 63,
+  "label": ";",
+  "row": 3,
+  "col": 12
+ },
+ {
+  "index": 64,
+  "label": ".",
+  "row": 4,
+  "col": 12
+ },
+ {
+  "index": 65,
+  "label": "Right Alt/Opt",
+  "row": 5,
+  "col": 12
+ },
+ {
+  "index": 66,
+  "label": "F9",
+  "row": 0,
+  "col": 12
+ },
+ {
+  "index": 67,
+  "label": "-",
+  "row": 1,
+  "col": 12
+ },
+ {
+  "index": 68,
+  "label": "[",
+  "row": 2,
+  "col": 13
+ },
+ {
+  "index": 69,
+  "label": "'",
+  "row": 3,
+  "col": 13
+ },
+ {
+  "index": 70,
+  "label": "/",
+  "row": 4,
+  "col": 13
+ },
+ {
+  "index": 72,
+  "label": "F10",
+  "row": 0,
+  "col": 13
+ },
+ {
+  "index": 73,
+  "label": "=",
+  "row": 1,
+  "col": 13
+ },
+ {
+  "index": 74,
+  "label": "]",
+  "row": 2,
+  "col": 14
+ },
+ {
+  "index": 75,
+  "label": "ISO #",
+  "row": 3,
+  "col": 14
+ },
+ {
+  "index": 77,
+  "label": "Right Win/Cmd",
+  "row": 5,
+  "col": 13
+ },
+ {
+  "index": 78,
+  "label": "F11",
+  "row": 0,
+  "col": 14
+ },
+ {
+  "index": 82,
+  "label": "Right Shift",
+  "row": 4,
+  "col": 14
+ },
+ {
+  "index": 83,
+  "label": "Fn",
+  "row": 5,
+  "col": 14
+ },
+ {
+  "index": 84,
+  "label": "F12",
+  "row": 0,
+  "col": 15
+ },
+ {
+  "index": 85,
+  "label": "Backspace",
+  "row": 1,
+  "col": 14
+ },
+ {
+  "index": 86,
+  "label": "\\",
+  "row": 2,
+  "col": 15
+ },
+ {
+  "index": 87,
+  "label": "Enter",
+  "row": 3,
+  "col": 15
+ },
+ {
+  "index": 89,
+  "label": "Right Ctrl",
+  "row": 5,
+  "col": 15
+ },
+ {
+  "index": 90,
+  "label": "PrtSc",
+  "row": 0,
+  "col": 16
+ },
+ {
+  "index": 91,
+  "label": "Insert",
+  "row": 1,
+  "col": 16
+ },
+ {
+  "index": 92,
+  "label": "Delete",
+  "row": 2,
+  "col": 16
+ },
+ {
+  "index": 95,
+  "label": "Left",
+  "row": 5,
+  "col": 16
+ },
+ {
+  "index": 96,
+  "label": "ScrLk",
+  "row": 0,
+  "col": 17
+ },
+ {
+  "index": 97,
+  "label": "Home",
+  "row": 1,
+  "col": 17
+ },
+ {
+  "index": 98,
+  "label": "End",
+  "row": 2,
+  "col": 17
+ },
+ {
+  "index": 100,
+  "label": "Up",
+  "row": 4,
+  "col": 17
+ },
+ {
+  "index": 101,
+  "label": "Down",
+  "row": 5,
+  "col": 17
+ },
+ {
+  "index": 102,
+  "label": "Pause",
+  "row": 0,
+  "col": 18
+ },
+ {
+  "index": 103,
+  "label": "PgUp",
+  "row": 1,
+  "col": 18
+ },
+ {
+  "index": 104,
+  "label": "PgDn",
+  "row": 2,
+  "col": 18
+ },
+ {
+  "index": 107,
+  "label": "Right",
+  "row": 5,
+  "col": 18
+ }
+]
