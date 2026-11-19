@@ -3,27 +3,76 @@ import DuckyKit
 import Observation
 import SwiftUI
 
+enum PaintTool: String, CaseIterable, Identifiable, Codable {
+    case brush = "Brush"
+    case eraser = "Eraser"
+    case eyedropper = "Eyedropper"
+    case fillRow = "Fill row"
+    case fillColumn = "Fill column"
+
+    var id: String { rawValue }
+
+    var systemImage: String {
+        switch self {
+        case .brush: return "paintbrush.pointed"
+        case .eraser: return "eraser"
+        case .eyedropper: return "eyedropper"
+        case .fillRow: return "arrow.left.and.right"
+        case .fillColumn: return "arrow.up.and.down"
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class AppModel {
     enum Status: Equatable {
         case disconnected(String)
         case connected(String)
-        case released
+        case released(String)
     }
 
-    var layout = KeyLayout.one2TKL(.ansi)
+    /// Why the app is currently not driving the keyboard. Control resumes when none are left.
+    enum Hold: Hashable {
+        case user, sleep, lock, background
+
+        var reason: String {
+            switch self {
+            case .user: return "Keyboard firmware in control"
+            case .sleep: return "Released while the Mac sleeps"
+            case .lock: return "Released while the screen is locked"
+            case .background: return "Released while the app is in the background"
+            }
+        }
+    }
+
+    var layoutVariant: LayoutVariant = .ansi {
+        didSet { layout = KeyLayout.one2TKL(layoutVariant); needsSend = true; persist() }
+    }
+    private(set) var layout = KeyLayout.one2TKL(.ansi)
     var effect: EffectKind = .wave { didSet { restartClock(); needsSend = true; persist() } }
     var settings = EffectSettings() { didSet { needsSend = true; persist() } }
-    /// Color used by the paint brush in Custom mode.
+    var releaseWhenLocked = true {
+        didSet { if !restoring && !releaseWhenLocked { setHold(.lock, false) }; persist() }
+    }
+    var releaseInBackground = false {
+        didSet {
+            if !restoring { setHold(.background, releaseInBackground && !NSApplication.shared.isActive) }
+            persist()
+        }
+    }
+
+    /// Color used by the brush in Custom mode.
     var brush: RGB = RGB(255, 0, 128)
+    var tool: PaintTool = .brush
     /// Last rendered frame, drawn by KeyboardView (works even with no keyboard attached).
     private(set) var preview: [Int: RGB] = [:]
-    private(set) var status: Status = .disconnected("Not connected")
+    private(set) var status: Status = .disconnected("Looking for the keyboard…")
     private(set) var fps: Double = 0
     var presses: [DuckyKit.KeyPress] = []
 
     @ObservationIgnored let device = DuckyDevice()
+    @ObservationIgnored private let hardware: Bool
     @ObservationIgnored private let hidQueue = DispatchQueue(label: "ducky.frames", qos: .userInteractive)
     @ObservationIgnored private var timer: Timer?
     @ObservationIgnored private var start = Date()
@@ -31,8 +80,9 @@ final class AppModel {
     @ObservationIgnored private var sending = false
     @ObservationIgnored private var frameCount = 0
     @ObservationIgnored private var fpsWindowStart = Date()
-    /// True while we released control because the Mac went to sleep; resume on wake.
-    @ObservationIgnored private var releasedForSleep = false
+    @ObservationIgnored private var holds: Set<Hold> = []
+    @ObservationIgnored private var restoring = false
+    @ObservationIgnored private var observers: [NSObjectProtocol] = []
 
     static let palette: [RGB] = [
         RGB(255, 0, 0), RGB(255, 128, 0), RGB(255, 220, 0), RGB(0, 255, 0),
@@ -40,18 +90,31 @@ final class AppModel {
         RGB(255, 0, 200), RGB(255, 255, 255), RGB(0, 0, 0),
     ]
 
-    init() {
+    /// `hardware: false` renders previews only and never touches the keyboard (snapshots).
+    init(hardware: Bool = true) {
+        self.hardware = hardware
         restore()
-        connect()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
+        tick()
+        guard hardware else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
-        observeSleep()
+        device.watchHotPlug { [weak self] event in
+            MainActor.assumeIsolated { self?.hotPlug(event) }
+        }
+        observeSystem()
     }
 
+    // MARK: - Control
+
+    var isConnected: Bool { if case .connected = status { return true } else { return false } }
+    var isReleased: Bool { if case .released = status { return true } else { return false } }
+
     func connect() {
+        guard hardware else { return }
+        if let hold = holds.first { status = .released(hold.reason); return }
         do {
-            try device.connect()
+            try device.beginDirectMode()
             status = .connected(device.selected.map { DuckyProtocol.knownProducts[$0.productID] ?? $0.product } ?? "Ducky")
             needsSend = true
         } catch {
@@ -60,20 +123,72 @@ final class AppModel {
     }
 
     /// Give lighting back to the keyboard firmware (Fn shortcuts work again).
-    func releaseToHardware() {
-        hidQueue.async { [device] in device.release() }
-        status = .released
+    func releaseToHardware() { setHold(.user, true) }
+
+    func resumeControl() { setHold(.user, false) }
+
+    private func setHold(_ hold: Hold, _ on: Bool) {
+        guard hardware else { return }
+        let wasHeld = !holds.isEmpty
+        if on { holds.insert(hold) } else { holds.remove(hold) }
+        if holds.isEmpty {
+            if wasHeld { connect() }
+        } else if !wasHeld {
+            // Synchronous so it lands before the Mac sleeps. Frames queued behind it are
+            // dropped by DuckyDevice because it is no longer in direct mode.
+            device.release()
+            status = .released(hold.reason)
+        } else if case .released = status {
+            status = .released(holds.contains(.user) ? Hold.user.reason : (holds.first?.reason ?? ""))
+        }
     }
 
-    func resumeControl() { connect() }
+    private func hotPlug(_ event: DuckyDevice.ConnectionEvent) {
+        switch event {
+        case .appeared:
+            if holds.isEmpty && !isConnected { connect() }
+        case .disappeared:
+            if isConnected { status = .disconnected("Keyboard unplugged. Plug it back in to continue.") }
+        }
+    }
 
-    func paint(_ key: KeyInfo) {
-        settings.paint[key.ledIndex] = brush
+    // MARK: - Painting
+
+    /// Apply the current tool to `key`. `dragging` is true for keys reached by dragging,
+    /// where only brush and eraser keep working.
+    func apply(to key: KeyInfo, dragging: Bool) {
+        switch tool {
+        case .brush:
+            settings.paint[key.ledIndex] = brush
+        case .eraser:
+            settings.paint[key.ledIndex] = nil
+        case .eyedropper:
+            guard !dragging else { return }
+            brush = preview[key.ledIndex] ?? .black
+            tool = .brush
+            return
+        case .fillRow:
+            guard !dragging else { return }
+            for k in layout.row(of: key) { settings.paint[k.ledIndex] = brush }
+        case .fillColumn:
+            guard !dragging else { return }
+            for k in layout.column(of: key) { settings.paint[k.ledIndex] = brush }
+        }
         if effect != .custom { effect = .custom }
+    }
+
+    /// Keys the current tool would change if `key` were clicked (for hover highlighting).
+    func targets(for key: KeyInfo) -> Set<Int> {
+        switch tool {
+        case .fillRow: return Set(layout.row(of: key).map(\.ledIndex))
+        case .fillColumn: return Set(layout.column(of: key).map(\.ledIndex))
+        default: return [key.ledIndex]
+        }
     }
 
     func fillAll(_ c: RGB) {
         for k in layout.keys { settings.paint[k.ledIndex] = c }
+        effect = .custom
     }
 
     func clearPaint() { settings.paint = [:] }
@@ -88,8 +203,7 @@ final class AppModel {
         let frame = EffectRenderer.render(effect, layout: layout, settings: settings, t: t, presses: presses)
         preview = frame
 
-        guard case .connected = status else { return }
-        guard effect.isAnimated || needsSend, !sending else { return }
+        guard isConnected, effect.isAnimated || needsSend, !sending else { return }
         needsSend = false
         sending = true
         hidQueue.async { [device, weak self] in
@@ -97,7 +211,9 @@ final class AppModel {
             Task { @MainActor in
                 guard let self else { return }
                 self.sending = false
-                if !ok { self.status = .disconnected("Write failed — keyboard unplugged?") }
+                if !ok, self.isConnected {
+                    self.status = .disconnected("Lost the keyboard. Plug it back in to continue.")
+                }
                 self.countFrame()
             }
         }
@@ -109,41 +225,60 @@ final class AppModel {
         if dt >= 1 { fps = Double(frameCount) / dt; frameCount = 0; fpsWindowStart = Date() }
     }
 
-    // MARK: - Sleep / wake
+    // MARK: - Sleep, lock, background
 
-    private func observeSleep() {
-        let nc = NSWorkspace.shared.notificationCenter
-        nc.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, case .connected = self.status else { return }
-                self.releasedForSleep = true
-                self.releaseToHardware()
-            }
+    private func observeSystem() {
+        let ws = NSWorkspace.shared.notificationCenter
+        let dnc = DistributedNotificationCenter.default()
+        let nc = NotificationCenter.default
+        func on(_ center: NotificationCenter, _ name: Notification.Name, _ body: @escaping @MainActor (AppModel) -> Void) {
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { if let self { body(self) } }
+            })
         }
-        nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, self.releasedForSleep else { return }
-                self.releasedForSleep = false
-                self.connect()
-            }
-        }
+        on(ws, NSWorkspace.willSleepNotification) { $0.setHold(.sleep, true) }
+        on(ws, NSWorkspace.didWakeNotification) { $0.setHold(.sleep, false) }
+        on(dnc, Notification.Name("com.apple.screenIsLocked")) { if $0.releaseWhenLocked { $0.setHold(.lock, true) } }
+        on(dnc, Notification.Name("com.apple.screenIsUnlocked")) { $0.setHold(.lock, false) }
+        on(nc, NSApplication.didResignActiveNotification) { if $0.releaseInBackground { $0.setHold(.background, true) } }
+        on(nc, NSApplication.didBecomeActiveNotification) { $0.setHold(.background, false) }
     }
 
-    // MARK: - Persistence (UserDefaults, last state only — profiles are a roadmap item)
+    // MARK: - Persistence (UserDefaults, last state only; named profiles are M4)
 
-    private struct Saved: Codable { var effect: EffectKind; var settings: EffectSettings }
+    private struct Saved: Codable {
+        var effect: EffectKind
+        var settings: EffectSettings
+        var layoutVariant: LayoutVariant?
+        var releaseWhenLocked: Bool?
+        var releaseInBackground: Bool?
+    }
 
     private func persist() {
-        if let data = try? JSONEncoder().encode(Saved(effect: effect, settings: settings)) {
+        guard hardware, !restoring else { return }
+        let saved = Saved(effect: effect, settings: settings, layoutVariant: layoutVariant,
+                          releaseWhenLocked: releaseWhenLocked, releaseInBackground: releaseInBackground)
+        if let data = try? JSONEncoder().encode(saved) {
             UserDefaults.standard.set(data, forKey: "state")
         }
     }
 
     private func restore() {
-        guard let data = UserDefaults.standard.data(forKey: "state"),
+        guard hardware, let data = UserDefaults.standard.data(forKey: "state"),
               let s = try? JSONDecoder().decode(Saved.self, from: data) else { return }
+        restoring = true
+        defer { restoring = false }
         effect = s.effect
         settings = s.settings
+        layoutVariant = s.layoutVariant ?? .ansi
+        releaseWhenLocked = s.releaseWhenLocked ?? true
+        releaseInBackground = s.releaseInBackground ?? false
+    }
+
+    /// For snapshots: show a given effect at a given time without touching hardware.
+    func previewFrame(_ kind: EffectKind, at t: Double) {
+        effect = kind
+        preview = EffectRenderer.render(kind, layout: layout, settings: settings, t: t, presses: presses)
     }
 }
 

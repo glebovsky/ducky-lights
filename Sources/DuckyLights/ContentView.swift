@@ -53,8 +53,8 @@ private struct StatusBar: View {
                 Spacer()
                 Button("Release to keyboard") { model.releaseToHardware() }
                     .help("Exit direct mode so the keyboard's own effects and Fn shortcuts work again")
-            case .released:
-                Label("Keyboard firmware in control", systemImage: "cpu").foregroundStyle(.secondary)
+            case .released(let why):
+                Label(why, systemImage: "cpu").foregroundStyle(.secondary)
                 Spacer()
                 Button("Take control") { model.resumeControl() }
             case .disconnected(let why):
@@ -80,7 +80,15 @@ private struct ControlsPanel: View {
                 ColorPicker("Background", selection: rgbBinding(\.settings.background), supportsOpacity: false)
             }
             VStack(alignment: .leading, spacing: 8) {
-                Text("Palette").font(.headline)
+                Text("Paint").font(.headline)
+                Picker("Tool", selection: $model.tool) {
+                    ForEach(PaintTool.allCases) { t in
+                        Image(systemName: t.systemImage).help(t.rawValue).tag(t)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 240)
                 HStack(spacing: 6) {
                     ForEach(AppModel.palette, id: \.self) { c in
                         Circle().fill(c.color)
@@ -89,9 +97,9 @@ private struct ControlsPanel: View {
                             .onTapGesture { model.brush = c; model.settings.primary = c }
                     }
                 }
-                ColorPicker("Brush (click keys to paint)", selection: rgbBinding(\.brush), supportsOpacity: false)
+                ColorPicker("Brush (click or drag over keys)", selection: rgbBinding(\.brush), supportsOpacity: false)
                 HStack {
-                    Button("Fill all with brush") { model.fillAll(model.brush); model.effect = .custom }
+                    Button("Fill all with brush") { model.fillAll(model.brush) }
                     Button("Clear paint") { model.clearPaint() }
                 }
             }
@@ -151,5 +159,26 @@ struct HardwareModesView: View {
         }
         .padding(24)
         .frame(width: 640)
+    }
+}
+
+struct SettingsView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var model = model
+        Form {
+            Picker("Keyboard layout", selection: $model.layoutVariant) {
+                Text("ANSI (US)").tag(LayoutVariant.ansi)
+                Text("ISO (EU/UK)").tag(LayoutVariant.iso)
+            }
+            Toggle("Hand lighting back to the keyboard while the screen is locked", isOn: $model.releaseWhenLocked)
+            Toggle("Hand lighting back to the keyboard while Ducky Lights is in the background",
+                   isOn: $model.releaseInBackground)
+            Text("The app always releases the keyboard on quit and when the Mac sleeps.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        .formStyle(.grouped)
+        .frame(width: 520)
     }
 }

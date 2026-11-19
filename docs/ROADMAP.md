@@ -11,16 +11,19 @@ Done 2026-11-19, except the Python step and Mac sleep.
 - [x] `swift run duckyctl solid 00ff00`, `effect "Rainbow Wave" 10`, `release`. The wave stuttered at 26 fps. Dropping the 2 ms packet gap gave ~95 fps and smooth motion. Added `duckyctl bench`.
 - [x] Answer the open questions in `docs/RESEARCH.md` and record the answers there. Still open: does direct mode survive Mac sleep?
 
-## M1 — Usable app (scaffold exists, polish it)
-- [ ] `swift run DuckyLights`: sidebar of effects, live keyboard preview, palette, color pickers, speed/brightness.
-- [ ] Click/drag to paint keys (Custom effect). Add an eyedropper and a "fill row/column" option.
-- [ ] Make the preview look like the real board (dark case, keycap legends). Handle the ISO geometry (1.25u Left Shift, tall Enter) behind an ANSI/ISO setting.
-- [ ] Handle hot-plug with `IOHIDManagerRegisterDeviceMatchingCallback` / removal callback (status updates, auto-reconnect).
-- [ ] Release on quit, sleep and screen lock. Optionally release when the app is in the background.
+## M1 — Usable app
+Done 2026-11-19 and checked on the board, except Mac sleep (not tried yet).
+- [x] `swift run DuckyLights`: sidebar of effects, live keyboard preview, palette, color pickers, speed/brightness. Renders at 60 fps.
+- [x] Click/drag to paint keys (Custom effect). Tools: brush, eraser, eyedropper, fill row, fill column. Hovering highlights the keys a click will change.
+- [x] Preview looks like the real board: dark case, LED light bleeding onto the plate, sculpted caps, shine-through legends (shifted symbols stacked). ANSI/ISO in Settings (1.25u Left Shift, tall Enter, `ISO #`/`ISO \`).
+- [x] Hot-plug via IOHIDManager matching/removal callbacks. Unplug shows a status; replug resumes on its own.
+- [x] Release on quit, Ctrl-C/SIGTERM, uncaught exceptions, sleep and screen lock (lock is a setting, on by default). Optional release while the app is in the background (off by default). Control comes back on wake/unlock/activate.
+- [x] Menu bar duck (pulled forward from M2): open window, switch effects, release/take control, settings, quit. Closing the window keeps the app running in the menu bar.
+- [ ] Check release + resume across Mac sleep on the real board.
 
 ## M2 — Proper macOS app packaging
 - [ ] Move to an Xcode project (or XcodeGen `project.yml`) for a real `.app`: bundle ID, icon, Info.plist, no sandbox (or the USB entitlement).
-- [ ] Menu-bar extra (`MenuBarExtra`) with quick effect switching, so the main window can stay closed.
+- [x] Menu-bar extra (`MenuBarExtra`) with quick effect switching, so the main window can stay closed. Done in M1. When it becomes a real `.app`, set `LSUIElement` or keep the Dock-icon-while-window-open behavior.
 - [ ] Launch at login (`SMAppService.mainApp`). Re-apply the last profile on launch and wake.
 
 ## M3 — Reactive effects

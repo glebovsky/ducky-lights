@@ -17,6 +17,26 @@ public struct HIDCandidate: CustomStringConvertible {
 
     public var isVendorDefined: Bool { usagePage >= 0xFF00 }
 
+    /// The collection that takes lighting packets: known PID, vendor-defined page, 64-byte output.
+    /// Confirmed on a One 2 RGB TKL: `0xFF00/0x0001`, out 64, in 64.
+    public var isLightingInterface: Bool {
+        DuckyProtocol.knownProducts[productID] != nil && isVendorDefined
+            && maxOutputReportSize >= DuckyProtocol.reportLength
+    }
+
+    init(_ d: IOHIDDevice) {
+        func int(_ key: String) -> Int { (IOHIDDeviceGetProperty(d, key as CFString) as? Int) ?? 0 }
+        func str(_ key: String) -> String { (IOHIDDeviceGetProperty(d, key as CFString) as? String) ?? "" }
+        device = d
+        productID = int(kIOHIDProductIDKey)
+        product = str(kIOHIDProductKey)
+        usagePage = int(kIOHIDPrimaryUsagePageKey)
+        usage = int(kIOHIDPrimaryUsageKey)
+        maxOutputReportSize = int(kIOHIDMaxOutputReportSizeKey)
+        maxInputReportSize = int(kIOHIDMaxInputReportSizeKey)
+        locationID = int(kIOHIDLocationIDKey)
+    }
+
     public var description: String {
         String(format: "%04x:%04x \"%@\" usagePage=0x%04x usage=0x%04x out=%d in=%d loc=0x%08x%@",
                DuckyProtocol.vendorID, productID, product, usagePage, usage,
@@ -53,32 +73,22 @@ public final class HIDTransport {
         IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone))
     }
 
-    deinit { close() }
+    deinit {
+        if onEvent != nil {
+            IOHIDManagerUnscheduleFromRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
+        }
+        close()
+    }
 
     /// Every HID collection with the Ducky/Holtek vendor ID. Use for diagnostics.
     public func candidates() -> [HIDCandidate] {
         guard let set = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> else { return [] }
-        func int(_ d: IOHIDDevice, _ key: String) -> Int { (IOHIDDeviceGetProperty(d, key as CFString) as? Int) ?? 0 }
-        func str(_ d: IOHIDDevice, _ key: String) -> String { (IOHIDDeviceGetProperty(d, key as CFString) as? String) ?? "" }
-        return set.map { d in
-            HIDCandidate(device: d,
-                         productID: int(d, kIOHIDProductIDKey),
-                         product: str(d, kIOHIDProductKey),
-                         usagePage: int(d, kIOHIDPrimaryUsagePageKey),
-                         usage: int(d, kIOHIDPrimaryUsageKey),
-                         maxOutputReportSize: int(d, kIOHIDMaxOutputReportSizeKey),
-                         maxInputReportSize: int(d, kIOHIDMaxInputReportSizeKey),
-                         locationID: int(d, kIOHIDLocationIDKey))
-        }.sorted { ($0.productID, $0.usagePage, $0.usage) < ($1.productID, $1.usagePage, $1.usage) }
+        return set.map(HIDCandidate.init).sorted { ($0.productID, $0.usagePage, $0.usage) < ($1.productID, $1.usagePage, $1.usage) }
     }
 
-    /// Pick the lighting collection: known PID, vendor-defined usage page, 64-byte output reports.
-    /// ASSUMPTION to verify on real hardware — see docs/RESEARCH.md "Open questions".
+    /// Open the lighting collection (see `HIDCandidate.isLightingInterface`).
     public func open() throws {
-        let known = candidates().filter { DuckyProtocol.knownProducts[$0.productID] != nil }
-        let pick = known.first { $0.isVendorDefined && $0.maxOutputReportSize >= DuckyProtocol.reportLength }
-            ?? known.first { $0.maxOutputReportSize >= DuckyProtocol.reportLength }
-        guard let c = pick else { throw HIDError.notFound }
+        guard let c = candidates().first(where: \.isLightingInterface) else { throw HIDError.notFound }
         let r = IOHIDDeviceOpen(c.device, IOOptionBits(kIOHIDOptionsTypeNone))
         guard r == kIOReturnSuccess else { throw HIDError.openFailed(r) }
         device = c.device
@@ -86,6 +96,27 @@ public final class HIDTransport {
     }
 
     public var isOpen: Bool { device != nil }
+
+    public enum Event: Sendable { case added, removed }
+    private var onEvent: ((Event, HIDCandidate) -> Void)?
+
+    /// Report every Ducky collection that appears or disappears, on the main run loop.
+    /// Fires `.added` once for each collection already attached. Call once.
+    public func startMonitoring(_ handler: @escaping (Event, HIDCandidate) -> Void) {
+        onEvent = handler
+        let ctx = Unmanaged.passUnretained(self).toOpaque()
+        IOHIDManagerRegisterDeviceMatchingCallback(manager, { ctx, _, _, device in
+            guard let ctx else { return }
+            let me = Unmanaged<HIDTransport>.fromOpaque(ctx).takeUnretainedValue()
+            me.onEvent?(.added, HIDCandidate(device))
+        }, ctx)
+        IOHIDManagerRegisterDeviceRemovalCallback(manager, { ctx, _, _, device in
+            guard let ctx else { return }
+            let me = Unmanaged<HIDTransport>.fromOpaque(ctx).takeUnretainedValue()
+            me.onEvent?(.removed, HIDCandidate(device))
+        }, ctx)
+        IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetMain(), CFRunLoopMode.defaultMode.rawValue)
+    }
 
     public func write(_ payload: [UInt8]) throws {
         guard let device else { throw HIDError.notFound }

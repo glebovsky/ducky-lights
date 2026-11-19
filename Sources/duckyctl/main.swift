@@ -52,7 +52,7 @@ case "list":
 case "solid":
     guard args.count == 2 else { die("usage: duckyctl solid RRGGBB") }
     do {
-        try device.connect()
+        try device.beginDirectMode()
         let c = color(args[1])
         try device.show(Dictionary(uniqueKeysWithValues: layout.keys.map { ($0.ledIndex, c) }))
         print("OK. Run `duckyctl release` to give lighting back to the keyboard.")
@@ -63,7 +63,7 @@ case "key":
         die("usage: duckyctl key LABEL RRGGBB   labels: " + layout.keys.map(\.label).joined(separator: " "))
     }
     do {
-        try device.connect()
+        try device.beginDirectMode()
         try device.show([k.ledIndex: color(args[2])])
     } catch { die("\(error)") }
 
@@ -73,7 +73,7 @@ case "effect":
     }
     let seconds = args.count > 2 ? Double(args[2]) ?? 10 : 10
     do {
-        try device.connect()
+        try device.beginDirectMode()
         let start = Date()
         var frames = 0
         while Date().timeIntervalSince(start) < seconds {
@@ -128,7 +128,7 @@ case "bench":
 
 case "release":
     do { try device.connect() } catch { die("\(error)") }
-    device.release()
+    device.release(force: true)
     print("Released.")
 
 default:

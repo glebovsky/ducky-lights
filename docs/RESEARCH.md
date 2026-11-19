@@ -38,7 +38,7 @@ The original questions stay below with their answers.
 6. **Max frame rate.** Try shorter inter-packet delays (1 ms, 0) and watch for dropped or garbled frames.
    **~95 fps with no inter-packet gap**, and frames looked clean. `IOHIDDeviceSetReport` blocks ~1 ms per packet already. The 2 ms gap borrowed from OpenRGB gave 26 fps with 31–43 ms frame jitter, and the owner saw it as jerky. `interPacketDelay` is now 0. Re-measure with `swift run duckyctl bench <delayMs> <seconds>`.
 7. **Does `41 01` persist across USB re-enumeration or Mac sleep?** Presumably not, so on wake / replug the app must reconnect and re-enter direct mode.
-   **Replug: no.** After unplugging a board held red, it came back in its own firmware lighting. The app must re-enter direct mode on reconnect (M1 hot-plug). **Mac sleep: not tested yet.**
+   **Replug: no.** After unplugging a board held red, it came back in its own firmware lighting. The app re-enters direct mode on reconnect (M1 hot-plug, confirmed working). Screen lock → release → unlock → resume also works. **Mac sleep: not tested yet.**
 
 ## macOS implementation notes
 
