@@ -33,10 +33,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Snapshots.write(to: URL(fileURLWithPath: dir))
             exit(0)
         }
-        // Needed when launched via `swift run` (no .app bundle): show in Dock and take focus.
-        NSApp.setActivationPolicy(.regular)
-        NSApp.activate(ignoringOtherApps: true)
         installReleaseOnExit()
+        if model.openWindowAtLaunch {
+            // Needed when launched via `swift run` (no .app bundle): show in Dock and take focus.
+            NSApp.setActivationPolicy(.regular)
+            NSApp.activate(ignoringOtherApps: true)
+        } else {
+            // Menu bar only: the Window scene is suppressed (see `mainWindow`).
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -68,7 +73,7 @@ struct DuckyLightsApp: App {
     static let mainWindowID = "main"
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
-    var body: some Scene {
+    private var window: some Scene {
         Window("Ducky Lights", id: Self.mainWindowID) {
             ContentView()
                 .environment(delegate.model)
@@ -79,6 +84,16 @@ struct DuckyLightsApp: App {
         }
         .defaultSize(width: 1100, height: 720)
         .windowResizability(.contentMinSize)
+    }
+
+    /// With "Open the window when the app starts" off, don't create the window at launch
+    /// at all (closing it afterwards flashes it and its Dock icon). Needs macOS 15.
+    private var mainWindow: some Scene {
+        window.defaultLaunchBehavior(delegate.model.openWindowAtLaunch ? .presented : .suppressed)
+    }
+
+    var body: some Scene {
+        mainWindow
 
         MenuBarExtra {
             MenuBarMenu().environment(delegate.model)

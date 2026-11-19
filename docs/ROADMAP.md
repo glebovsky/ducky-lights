@@ -22,9 +22,12 @@ Done 2026-11-19 and checked on the board, except Mac sleep (not tried yet).
 - [ ] Check release + resume across Mac sleep on the real board.
 
 ## M2 — Proper macOS app packaging
-- [ ] Move to an Xcode project (or XcodeGen `project.yml`) for a real `.app`: bundle ID, icon, Info.plist, no sandbox (or the USB entitlement).
-- [x] Menu-bar extra (`MenuBarExtra`) with quick effect switching, so the main window can stay closed. Done in M1. When it becomes a real `.app`, set `LSUIElement` or keep the Dock-icon-while-window-open behavior.
-- [ ] Launch at login (`SMAppService.mainApp`). Re-apply the last profile on launch and wake.
+Done 2026-11-19 and checked by the owner, except a real logout/login (not tried yet).
+- [x] A real `.app` with no Xcode project: `scripts/build-app.sh [--install]` builds a release with SwiftPM, assembles the bundle from `Packaging/Info.plist` (`com.glebovsky.DuckyLights`, `LSUIElement`) and `Resources/AppIcon.icns`, signs it ad-hoc, and installs to /Applications. No sandbox. No permission prompts on the real board.
+- [x] App icon: a rainbow-lit duck drawn in code (`AppIconView`), regenerated with `scripts/make-icon.sh`.
+- [x] Menu-bar extra (`MenuBarExtra`) with quick effect switching, so the main window can stay closed. Done in M1. `LSUIElement` plus a Dock icon only while the window is open.
+- [x] Launch at login (`SMAppService.mainApp`, toggle in Settings). "Open the window when the app starts" setting. Off means the app starts in the menu bar only, using `defaultLaunchBehavior(.suppressed)`, which is why the minimum is now macOS 15. The last effect is re-applied on launch, wake and replug. Settings saved by `swift run` builds carry over on first launch.
+- [ ] Confirm the app really starts after logging out and back in.
 
 ## M3 — Reactive effects
 - [ ] Key-event source (see RESEARCH.md) feeding `AppModel.presses`. Add a mac keyCode → LED index table.

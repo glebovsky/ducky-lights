@@ -2,7 +2,7 @@
 
 A macOS app for the **Ducky One 2 RGB TKL**. Pick colors from a palette, paint individual keys, and run animations (wave, breathing, radar, raindrop, …) with a live on-screen preview of the keyboard.
 
-> Status: M0 and M1 done (see `docs/ROADMAP.md`). The app runs from `swift run`. Packaging it as a real `.app` is next (M2).
+> Status: M0–M2 done (see `docs/ROADMAP.md`). Installs as a real macOS app. Reactive (key-press) effects are next (M3).
 
 ## Try it in 2 minutes (before any Swift)
 
@@ -18,6 +18,14 @@ python3 tools/ducky.py release            # back to the keyboard's own lighting
 ```
 
 If `solid` works, the app will work.
+
+## Install
+
+```bash
+scripts/build-app.sh --install    # builds "Ducky Lights.app" and puts it in /Applications
+```
+
+Settings (⌘,) has launch at login, and an option to start quietly in the menu bar.
 
 ## The app
 

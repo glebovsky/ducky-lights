@@ -19,6 +19,7 @@ Sources/DuckyKit/                 Library, no UI
   DuckyDevice.swift               direct-mode session, frame sending on a serial queue, hot-plug events
   Effects/Effects.swift           software effects (static, custom paint, breathing, wave, radar, …)
 Sources/DuckyLights/              SwiftUI app (AppModel = 60 fps render/send loop + release holds)
+Packaging/Info.plist              bundle plist template for scripts/build-app.sh
   KeyboardView.swift              Canvas-drawn board, painting gestures, keycap legends
   MenuBar.swift                   menu bar duck (icon drawn in code) + its menu
 Sources/duckyctl/                 CLI for bring-up: list / solid / key / effect / release / frame
@@ -35,12 +36,15 @@ swift run duckyctl solid ff0080
 swift run duckyctl bench 0 5      # write/frame timing stats (packet gap ms, seconds)
 swift run duckyctl release
 swift run DuckyLights
+scripts/build-app.sh --install    # real .app → /Applications (stops running copies first)
+scripts/make-icon.sh              # after changing AppIconView
 .build/debug/DuckyLights --snapshot <dir>   # render preview PNGs offscreen, no hardware (no Screen Recording permission needed)
 python3 tools/ducky.py vectors > Tests/DuckyKitTests/GoldenVectors.swift   # after any protocol change
 ```
 
 ## Status / caveats
-- M1 done (2026-11-19), see ROADMAP. Next is **M2** (real `.app`, launch at login).
+- M2 done (2026-11-19): installed as /Applications/Ducky Lights.app. Next is **M3** (key events for reactive effects).
+- M1 done (2026-11-19), see ROADMAP.
 - M0 done (2026-11-19). Builds with Swift 6.2, tests pass, verified on the real board: solid colors, ~95 fps animation, release restores Fn shortcuts. Answers are in `docs/RESEARCH.md`.
 - `tools/ducky.py` has not been run on this Mac (`hidapi` isn't installed). The golden vectors still match Swift.
 - No extra gap between packets: each HID write already blocks ~1 ms. A 2 ms gap made animations stutter.
@@ -55,5 +59,5 @@ python3 tools/ducky.py vectors > Tests/DuckyKitTests/GoldenVectors.swift   # aft
 - Protocol changes go into `tools/ducky.py` + `docs/PROTOCOL.md` first. Then regenerate the vectors and update Swift.
 - Keep `DuckyProtocol` pure (no IOKit) so it stays unit-testable.
 - Never send unknown or undocumented commands to the keyboard outside a deliberate M5 research session. Never touch firmware-update commands.
-- Target macOS 14+, Swift 5.9+, no third-party dependencies unless there's a clear win.
+- Target macOS 15+ (raised from 14 on 2026-11-19 for `defaultLaunchBehavior`; the owner's Mac runs 15), Swift 5.9+, no third-party dependencies unless there's a clear win.
 - Testing on hardware is manual. Ask the owner to look at the keyboard and report back when a change affects what it shows.

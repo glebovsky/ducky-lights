@@ -1,4 +1,5 @@
 import DuckyKit
+import ServiceManagement
 import SwiftUI
 
 struct ContentView: View {
@@ -295,7 +296,29 @@ struct SettingsView: View {
                    isOn: $model.releaseInBackground)
             Text("The app always releases the keyboard on quit and when the Mac sleeps.")
                 .font(.caption).foregroundStyle(.secondary)
+
+            Section("Startup") {
+                Toggle("Launch at login", isOn: Binding(get: { model.launchAtLogin },
+                                                        set: { model.setLaunchAtLogin($0) }))
+                    .disabled(!model.isBundled)
+                if !model.isBundled {
+                    Text("Works in the installed app only (scripts/build-app.sh --install).")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if model.loginItemStatus == .requiresApproval {
+                    HStack {
+                        Text("macOS needs your OK in Login Items.").font(.caption)
+                        Button("Open Login Items…") { SMAppService.openSystemSettingsLoginItems() }
+                    }
+                }
+                if let err = model.loginItemError {
+                    Text(err).font(.caption).foregroundStyle(.red)
+                }
+                Toggle("Open the window when the app starts", isOn: $model.openWindowAtLaunch)
+                Text("Off: the app starts in the menu bar only and puts your last effect back on the keyboard.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
         }
+        .onAppear { model.refreshLoginItem() }
         .formStyle(.grouped)
         .frame(width: 520)
     }

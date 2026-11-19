@@ -1,6 +1,7 @@
 import AppKit
 import DuckyKit
 import Observation
+import ServiceManagement
 import SwiftUI
 
 enum PaintTool: String, CaseIterable, Identifiable, Codable {
@@ -62,6 +63,32 @@ final class AppModel {
         }
     }
 
+    /// Show the main window when the app starts. Off = start quietly in the menu bar
+    /// (nice with launch at login).
+    var openWindowAtLaunch = true { didSet { persist() } }
+
+    /// Launch at login only works from the installed .app (SMAppService needs a bundle).
+    let isBundled = Bundle.main.bundleIdentifier != nil
+    private(set) var loginItemStatus: SMAppService.Status = .notRegistered
+    private(set) var loginItemError: String?
+    var launchAtLogin: Bool { loginItemStatus == .enabled }
+
+    func setLaunchAtLogin(_ on: Bool) {
+        guard isBundled else { return }
+        do {
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            loginItemError = nil
+        } catch {
+            loginItemError = error.localizedDescription
+        }
+        refreshLoginItem()
+    }
+
+    func refreshLoginItem() {
+        guard isBundled else { return }
+        loginItemStatus = SMAppService.mainApp.status
+    }
+
     /// Color used by the brush in Custom mode.
     var brush: RGB = RGB(255, 0, 128)
     var tool: PaintTool = .brush
@@ -96,6 +123,7 @@ final class AppModel {
         restore()
         tick()
         guard hardware else { return }
+        refreshLoginItem()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
@@ -265,19 +293,25 @@ final class AppModel {
         var layoutVariant: LayoutVariant?
         var releaseWhenLocked: Bool?
         var releaseInBackground: Bool?
+        var openWindowAtLaunch: Bool?
     }
 
     private func persist() {
         guard hardware, !restoring else { return }
         let saved = Saved(effect: effect, settings: settings, layoutVariant: layoutVariant,
-                          releaseWhenLocked: releaseWhenLocked, releaseInBackground: releaseInBackground)
+                          releaseWhenLocked: releaseWhenLocked, releaseInBackground: releaseInBackground,
+                          openWindowAtLaunch: openWindowAtLaunch)
         if let data = try? JSONEncoder().encode(saved) {
             UserDefaults.standard.set(data, forKey: "state")
         }
     }
 
     private func restore() {
-        guard hardware, let data = UserDefaults.standard.data(forKey: "state"),
+        // `swift run` builds have no bundle ID, so they saved under the process name.
+        // The installed app picks that up on its first launch.
+        let data = UserDefaults.standard.data(forKey: "state")
+            ?? UserDefaults(suiteName: "DuckyLights")?.data(forKey: "state")
+        guard hardware, let data,
               let s = try? JSONDecoder().decode(Saved.self, from: data) else { return }
         restoring = true
         defer { restoring = false }
@@ -286,6 +320,7 @@ final class AppModel {
         layoutVariant = s.layoutVariant ?? .ansi
         releaseWhenLocked = s.releaseWhenLocked ?? true
         releaseInBackground = s.releaseInBackground ?? false
+        openWindowAtLaunch = s.openWindowAtLaunch ?? true
     }
 
     /// For snapshots: show a given effect at a given time without touching hardware.

@@ -30,7 +30,7 @@ The original questions stay below with their answers.
 2. **Which IOHIDDevice collection is the lighting one on macOS?** `swift run duckyctl list` prints usage page, usage and report sizes for every collection. The guess is vendor-defined page (≥ `0xFF00`) with 64-byte output reports. Fix `HIDTransport.open()` if it's wrong.
    **The guess was right.** Three collections: `0x0001/0x0006` keyboard (out 1, in 8), `0x0001/0x0080` system control (out 1, in 31), `0xFF00/0x0001` vendor (out 64, in 64). `HIDTransport.open()` picks the vendor one. No change needed.
 3. **Does opening it need Input Monitoring permission?** Vendor-defined collections normally don't. Keyboard collections do. If `IOHIDDeviceOpen` returns `kIOReturnNotPermitted` (0xE00002E2), that's why.
-   **No prompt and no error** when `duckyctl` runs from a terminal. Re-check once the app ships as its own `.app` bundle (M2), since TCC permissions attach to the launching app.
+   **No.** No prompt and no error, both for `duckyctl` from a terminal and for the installed, ad-hoc-signed `Ducky Lights.app` (M2). The vendor collection needs no TCC permission.
 4. **Do Fn shortcuts really stop in direct mode, and does `41 00` restore them?**
    **Yes to both.** With the board held green in direct mode, Fn+F10 and the brightness shortcuts did nothing. After `41 00` they worked again.
 5. **Does the keyboard need its replies read?** OpenRGB doesn't read them and works. If frames start stalling after a while, add an input-report callback that drains them.
