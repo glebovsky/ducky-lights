@@ -323,6 +323,13 @@ final class AppModel {
         openWindowAtLaunch = s.openWindowAtLaunch ?? true
     }
 
+    /// For README screenshots: look connected without touching hardware.
+    func pretendConnected(fps: Double = 60) {
+        guard !hardware else { return }
+        status = .connected("Ducky One 2 RGB TKL")
+        self.fps = fps
+    }
+
     /// For snapshots: show a given effect at a given time without touching hardware.
     func previewFrame(_ kind: EffectKind, at t: Double) {
         effect = kind

@@ -14,7 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return args[i + 1]
     }()
 
-    let model = AppModel(hardware: AppDelegate.snapshotDir == nil && AppDelegate.iconPath == nil)
+    let model = AppModel(hardware: AppDelegate.snapshotDir == nil && AppDelegate.iconPath == nil
+                         && AppDelegate.screenshotsDir == nil)
     private var signalSources: [DispatchSourceSignal] = []
 
     /// `DuckyLights --render-icon <file.png>` writes the 1024×1024 app icon (scripts/make-icon.sh).
@@ -24,7 +25,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return args[i + 1]
     }()
 
+    /// `DuckyLights --screenshots <dir>` renders the real window offscreen (README images).
+    static let screenshotsDir: String? = {
+        let args = CommandLine.arguments
+        guard let i = args.firstIndex(of: "--screenshots"), i + 1 < args.count else { return nil }
+        return args[i + 1]
+    }()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let dir = Self.screenshotsDir {
+            Snapshots.windows(to: URL(fileURLWithPath: dir))
+            exit(0)
+        }
         if let path = Self.iconPath {
             Snapshots.renderIcon(to: URL(fileURLWithPath: path))
             exit(0)
@@ -140,6 +152,52 @@ struct AppIconView: View {
 /// Offscreen renders for checking the UI without Screen Recording permission.
 @MainActor
 enum Snapshots {
+    /// Real window, real controls, drawn offscreen into PNGs. Works without Screen Recording
+    /// permission because it draws our own view hierarchy, not the screen.
+    static func windows(to dir: URL) {
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        NSApp.setActivationPolicy(.accessory)
+        let model = AppModel(hardware: false)
+        model.pretendConnected()
+
+        let window = NSWindow(contentRect: NSRect(x: -20_000, y: -20_000, width: 1100, height: 720),
+                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                              backing: .buffered, defer: false)
+        window.title = "Ducky Lights"
+        window.alphaValue = 0   // never visible; drawing into a bitmap ignores alpha
+        window.contentView = NSHostingView(rootView: ContentView().environment(model))
+        window.orderFrontRegardless()
+
+        func shot(_ name: String) {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+            // The frame view (contentView's superview) includes the title bar and traffic lights.
+            guard let view = window.contentView?.superview ?? window.contentView,
+                  let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
+            view.cacheDisplay(in: view.bounds, to: rep)
+            guard let png = rep.representation(using: .png, properties: [:]) else { return }
+            try? png.write(to: dir.appendingPathComponent(name))
+            print(dir.appendingPathComponent(name).path)
+        }
+
+        model.settings.speed = 1
+        model.settings.brightness = 1
+        model.previewFrame(.wave, at: 1.3)
+        shot("app-wave.png")
+
+        model.settings.background = RGB(0, 0, 25)
+        model.settings.paint = [:]
+        let layout = model.layout
+        for k in layout.keys where ["W", "A", "S", "D"].contains(k.label) { model.settings.paint[k.ledIndex] = RGB(255, 0, 128) }
+        for k in layout.row(of: layout.key(labeled: "F1")!) { model.settings.paint[k.ledIndex] = RGB(0, 170, 255) }
+        for k in layout.keys where ["Up", "Down", "Left", "Right"].contains(k.label) { model.settings.paint[k.ledIndex] = RGB(255, 220, 0) }
+        model.settings.paint[layout.key(labeled: "Esc")!.ledIndex] = RGB(255, 0, 0)
+        model.brush = RGB(255, 0, 128)
+        model.previewFrame(.custom, at: 0)
+        shot("app-custom.png")
+
+        window.close()
+    }
+
     static func renderIcon(to url: URL) {
         let r = ImageRenderer(content: AppIconView())
         r.scale = 1

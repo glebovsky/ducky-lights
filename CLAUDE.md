@@ -52,6 +52,7 @@ python3 tools/ducky.py vectors > Tests/DuckyKitTests/GoldenVectors.swift   # aft
 - Built-in firmware modes **can't** be selected over USB yet. The app gets its animations by rendering frames itself in direct mode.
 
 ## Rules
+- Keep `README.md` accurate as features land, in the same commit (owner's request, 2026-11-19). Regenerate the screenshots with `.build/debug/DuckyLights --screenshots docs/images` when the UI changes.
 - `DuckyDevice.show()` only sends while in direct mode (`beginDirectMode()` enters it). That way a frame queued behind a `release()` can't take the board back. Keep it that way.
 - The app's window can't be screenshotted here (no Screen Recording permission). Use `--snapshot` to check visuals (it also prints subview sizes), and ask the owner for anything interactive. `DUCKY_DEBUG_LAYOUT=1 .build/debug/DuckyLights` logs the real window and column frames to stdout.
 - SwiftUI layout trap (2026-11-19): a bare vertical `Divider` in an `HStack`, or a wrapping `Text` with `.fixedSize(vertical: true)`, made the window lay its content out taller than itself, hiding the top under the title bar. Draw column dividers as an `.overlay` and cap caption lines with `lineLimit`.
