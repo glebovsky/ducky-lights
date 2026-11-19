@@ -45,12 +45,13 @@ public enum EffectKind: String, CaseIterable, Identifiable, Codable, Sendable {
     case raindrop = "Raindrop"
     case reactive = "Reactive"
     case ripple = "Ripple"
+    case heatmap = "Typing Heatmap"
     case off = "Off"
 
     public var id: String { rawValue }
 
     /// Needs live key presses (Input Monitoring permission).
-    public var needsKeyEvents: Bool { self == .reactive || self == .ripple }
+    public var needsKeyEvents: Bool { self == .reactive || self == .ripple || self == .heatmap }
 
     /// The settings this effect reads, so the UI shows only controls that do something.
     /// `EffectControlsTests` checks this against `EffectRenderer`.
@@ -62,6 +63,7 @@ public enum EffectKind: String, CaseIterable, Identifiable, Codable, Sendable {
         case .breathing, .radar: return [.primary, .speed, .brightness]
         case .colorCycle, .wave: return [.speed, .brightness]
         case .raindrop, .reactive, .ripple: return [.primary, .background, .speed, .brightness]
+        case .heatmap: return [.background, .speed, .brightness]
         }
     }
 
@@ -74,12 +76,40 @@ public enum EffectKind: String, CaseIterable, Identifiable, Codable, Sendable {
 }
 
 public enum EffectRenderer {
-    /// Render one frame. `t` is seconds since the effect started.
+    /// Heatmap memory at speed 1: a key's heat halves roughly every 80 s (time constant 120 s).
+    public static let heatTimeConstant = 120.0
+    /// Ripple rings live this long (in speed-scaled seconds).
+    static let rippleLife = 2.0
+
+    /// Render one frame. `t` is seconds since the effect started; `presses` use the same clock.
     public static func render(_ kind: EffectKind, layout: KeyLayout, settings s: EffectSettings,
                               t: Double, presses: [KeyPress] = []) -> [Int: RGB] {
         let tt = t * s.speed
         var out: [Int: RGB] = [:]
         out.reserveCapacity(layout.keys.count)
+
+        // Per-frame work, so the per-key loop stays cheap with a long press history.
+        var lastPress: [Int: Double] = [:]
+        var rings: [(x: Double, y: Double, age: Double)] = []
+        var heat: [Int: Double] = [:]
+        var maxHeat = 0.0
+        switch kind {
+        case .reactive:
+            for p in presses where p.time <= t { lastPress[p.ledIndex] = max(lastPress[p.ledIndex] ?? -.infinity, p.time) }
+        case .ripple:
+            let centers = Dictionary(uniqueKeysWithValues: layout.keys.map { ($0.ledIndex, $0.center) })
+            for p in presses {
+                let age = (t - p.time) * s.speed
+                guard age >= 0, age < rippleLife, let c = centers[p.ledIndex] else { continue }
+                rings.append((c.x, c.y, age))
+            }
+        case .heatmap:
+            let tau = heatTimeConstant / s.speed
+            for p in presses where p.time <= t { heat[p.ledIndex, default: 0] += exp(-(t - p.time) / tau) }
+            maxHeat = heat.values.max() ?? 0
+        default:
+            break
+        }
 
         for key in layout.keys {
             let (cx, cy) = key.center
@@ -109,23 +139,30 @@ public enum EffectRenderer {
                 let local = (tt * 0.6 + phase).truncatingRemainder(dividingBy: 1)
                 c = s.background.mixed(with: s.primary, max(0, 1 - local * 3))
             case .reactive:
-                let last = presses.last { $0.ledIndex == key.ledIndex }
-                let age = last.map { t - $0.time } ?? .infinity
-                c = s.primary.mixed(with: s.background, age * s.speed)
+                let age = lastPress[key.ledIndex].map { t - $0 } ?? .infinity
+                c = s.primary.mixed(with: s.background, min(1, age * s.speed))
             case .ripple:
                 var v = 0.0
-                for p in presses {
-                    guard let k = layout.keys.first(where: { $0.ledIndex == p.ledIndex }) else { continue }
-                    let age = (t - p.time) * s.speed
-                    guard age >= 0, age < 2 else { continue }
-                    let dist = hypot(cx - k.center.x, cy - k.center.y)
-                    let ring = abs(dist - age * 8)
-                    v = max(v, max(0, 1 - ring) * (1 - age / 2))
+                for r in rings {
+                    let ring = abs(hypot(cx - r.x, cy - r.y) - r.age * 8)
+                    v = max(v, max(0, 1 - ring) * (1 - r.age / rippleLife))
                 }
                 c = s.background.mixed(with: s.primary, v)
+            case .heatmap:
+                let v = maxHeat > 0 ? (heat[key.ledIndex] ?? 0) / maxHeat : 0
+                // Untouched keys stay on the background; anything typed shows at least a cool blue.
+                c = v > 0.001 ? s.background.mixed(with: heatColor(v), min(1, 0.35 + v)) : s.background
             }
             out[key.ledIndex] = c.scaled(s.brightness)
         }
         return out
+    }
+
+    /// Cold to hot: blue, cyan, green, yellow, red.
+    static func heatColor(_ v: Double) -> RGB {
+        let stops: [RGB] = [RGB(0, 40, 255), RGB(0, 220, 255), RGB(0, 255, 60), RGB(255, 230, 0), RGB(255, 20, 0)]
+        let x = max(0, min(1, v)) * Double(stops.count - 1)
+        let i = min(Int(x), stops.count - 2)
+        return stops[i].mixed(with: stops[i + 1], x - Double(i))
     }
 }

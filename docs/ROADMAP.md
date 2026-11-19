@@ -30,8 +30,10 @@ Done 2026-11-19 and checked by the owner, except a real logout/login (not tried 
 - [ ] Confirm the app really starts after logging out and back in.
 
 ## M3 — Reactive effects
-- [ ] Key-event source (see RESEARCH.md) feeding `AppModel.presses`. Add a mac keyCode → LED index table.
-- [ ] Reactive, Ripple, and a "typing heatmap" effect.
+Done 2026-11-19. The owner checked Reactive, Ripple, Heatmap and normal typing on the board. Not yet confirmed: that the built-in laptop keyboard doesn't trigger effects (by design only the Ducky's VID/PID is matched).
+- [x] Key-event source: `KeyEventSource`, an IOHIDManager input-value callback on the Ducky's own keyboard collection (`0x01/0x06`). Not seized, so typing is unaffected, and only the Ducky counts. It maps HID usages to LED indices (`HIDKeyMap`, tested to cover every key except Fn, which the board never reports). Physical keys, so the macOS input layout doesn't matter. This needs Input Monitoring, used only while a typing effect is selected.
+- [x] Reactive, Ripple, and Typing Heatmap (decaying per-key heat, cold-to-hot colors, a "Cool-down" slider, Reset). The renderer precomputes once per frame, so 20k presses of history render in a few ms.
+- [x] Stable signing (`scripts/make-signing-cert.sh`) so Input Monitoring survives rebuilds. Ad-hoc signatures change every build.
 
 ## M4 — Profiles & extras
 - [ ] Named profiles (effect + settings + paint) saved as JSON in Application Support. Import/export.

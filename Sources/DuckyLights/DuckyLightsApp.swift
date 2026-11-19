@@ -195,6 +195,22 @@ enum Snapshots {
         model.previewFrame(.custom, at: 0)
         shot("app-custom.png")
 
+        // Heatmap from a made-up typing session: English text, spread over the last minute.
+        model.previewFrame(.heatmap, at: 0)
+        model.settings.background = RGB(0, 0, 0)
+        let text = "the quick brown fox jumps over the lazy dog while we write some swift code for the keyboard. "
+        var presses: [DuckyKit.KeyPress] = []
+        for (i, ch) in String(repeating: text, count: 6).enumerated() {
+            let label = ch == " " ? "Space" : ch == "." ? "." : String(ch).uppercased()
+            if let k = layout.key(labeled: label) { presses.append(DuckyKit.KeyPress(ledIndex: k.ledIndex, time: Double(i) * 0.1)) }
+        }
+        for i in stride(from: 0, to: presses.count, by: 9) {
+            presses.append(DuckyKit.KeyPress(ledIndex: layout.key(labeled: "Backspace")!.ledIndex, time: Double(i) * 0.1))
+        }
+        model.presses = presses
+        model.previewFrame(.heatmap, at: Double(presses.count) * 0.1)
+        shot("app-heatmap.png")
+
         window.close()
     }
 

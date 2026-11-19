@@ -17,7 +17,9 @@ Sources/DuckyKit/                 Library, no UI
   KeyLayout.swift, RGB.swift
   HIDTransport.swift              IOKit: find device, open, 64-byte output reports
   DuckyDevice.swift               direct-mode session, frame sending on a serial queue, hot-plug events
-  Effects/Effects.swift           software effects (static, custom paint, breathing, wave, radar, …)
+  Effects/Effects.swift           software effects (static, custom paint, breathing, wave, radar, reactive, ripple, heatmap)
+  HIDKeyMap.swift                 HID keyboard usage → LED label
+  KeyEventSource.swift            Ducky key-downs via IOHIDManager (Input Monitoring)
 Sources/DuckyLights/              SwiftUI app (AppModel = 60 fps render/send loop + release holds)
 Packaging/Info.plist              bundle plist template for scripts/build-app.sh
   KeyboardView.swift              Canvas-drawn board, painting gestures, keycap legends
@@ -43,7 +45,9 @@ python3 tools/ducky.py vectors > Tests/DuckyKitTests/GoldenVectors.swift   # aft
 ```
 
 ## Status / caveats
-- M2 done (2026-11-19): installed as /Applications/Ducky Lights.app. Next is **M3** (key events for reactive effects).
+- M3 done (2026-11-19): Reactive/Ripple/Heatmap from the Ducky's own key events. Next is **M4** (profiles, more effects).
+- Key-event diagnostics: `/usr/bin/log show --last 10m --predicate 'subsystem == "com.glebovsky.DuckyLights"'`. Permission problems are almost always a stale TCC entry from an old signature (see RESEARCH.md).
+- M2 done (2026-11-19): installed as /Applications/Ducky Lights.app.
 - M1 done (2026-11-19), see ROADMAP.
 - M0 done (2026-11-19). Builds with Swift 6.2, tests pass, verified on the real board: solid colors, ~95 fps animation, release restores Fn shortcuts. Answers are in `docs/RESEARCH.md`.
 - `tools/ducky.py` has not been run on this Mac (`hidapi` isn't installed). The golden vectors still match Swift.

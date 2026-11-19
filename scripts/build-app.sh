@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build "build/Ducky Lights.app": release binary, icon, Info.plist, ad-hoc signature, no sandbox.
+# Build "build/Ducky Lights.app": release binary, icon, Info.plist, signed, no sandbox.
 #   scripts/build-app.sh            # build only
 #   scripts/build-app.sh --install  # also stop running copies and install to /Applications
 set -euo pipefail
@@ -18,7 +18,14 @@ cp "$BIN" "$APP/Contents/MacOS/DuckyLights"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 sed -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" Packaging/Info.plist > "$APP/Contents/Info.plist"
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
-codesign --force --sign - --timestamp=none "$APP"
+# A stable identity keeps Input Monitoring granted across rebuilds (see make-signing-cert.sh).
+IDENTITY="Ducky Lights Local"
+if security find-identity -v -p codesigning | grep -q "\"$IDENTITY\""; then
+    codesign --force --sign "$IDENTITY" --timestamp=none "$APP"
+else
+    echo "note: no \"$IDENTITY\" identity, signing ad-hoc (run scripts/make-signing-cert.sh once)"
+    codesign --force --sign - --timestamp=none "$APP"
+fi
 echo "built $APP ($VERSION, build $BUILD)"
 
 if [[ "${1:-}" == "--install" ]]; then

@@ -50,6 +50,7 @@ struct ContentView: View {
         case .raindrop: return "cloud.rain"
         case .reactive: return "hand.tap"
         case .ripple: return "circle.circle"
+        case .heatmap: return "flame"
         case .off: return "lightbulb.slash"
         }
     }
@@ -145,7 +146,7 @@ struct ControlsPanel: View {
             Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
                 if c.contains(.speed) {
                     GridRow {
-                        Text("Speed")
+                        Text(model.effect == .heatmap ? "Cool-down" : "Speed")
                         Slider(value: $model.settings.speed, in: 0.1...3).frame(width: 180)
                         Text(String(format: "%.1f×", model.settings.speed))
                             .monospacedDigit().foregroundStyle(.secondary)
@@ -160,9 +161,35 @@ struct ControlsPanel: View {
                     }
                 }
             }
-            if model.effect.needsKeyEvents {
-                Text("Reacts to key presses, which aren't wired up yet (ROADMAP M3).")
-                    .font(.caption).foregroundStyle(.secondary)
+            if model.effect.needsKeyEvents { KeyAccessView() }
+        }
+    }
+}
+
+/// Permission state for the key-reactive effects.
+private struct KeyAccessView: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            switch model.keyAccess {
+            case .granted:
+                HStack {
+                    Label(model.isListeningToKeys ? "Reacting to keys on the Ducky" : "Waiting for the Ducky…",
+                          systemImage: "keyboard")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if model.effect == .heatmap {
+                        Button("Reset heatmap") { model.clearPresses() }.controlSize(.small)
+                    }
+                }
+            case .unknown:
+                Text("Needs Input Monitoring to see key presses. Only the Ducky is watched, and only while this effect is on.")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(3)
+                Button("Allow key access…") { model.requestKeyAccess() }
+            case .denied:
+                Text("Input Monitoring is off for Ducky Lights. Turn it on in Privacy & Security, then come back here. Already shows as on? It belongs to an older build: remove it there with −, then allow again.")
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(4)
+                Button("Open Privacy Settings…") { model.requestKeyAccess() }
             }
         }
     }

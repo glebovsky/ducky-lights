@@ -1,6 +1,7 @@
 import AppKit
 import DuckyKit
 import Observation
+import os
 import ServiceManagement
 import SwiftUI
 
@@ -51,7 +52,17 @@ final class AppModel {
         didSet { layout = KeyLayout.one2TKL(layoutVariant); needsSend = true; persist() }
     }
     private(set) var layout = KeyLayout.one2TKL(.ansi)
-    var effect: EffectKind = .wave { didSet { restartClock(); needsSend = true; persist() } }
+    var effect: EffectKind = .wave {
+        didSet {
+            // Re-selecting the current effect must not wipe the heatmap or restart animations.
+            guard effect != oldValue else { return }
+            restartClock()
+            presses = []   // their times are on the old effect's clock
+            needsSend = true
+            persist()
+            updateKeyListening()
+        }
+    }
     var settings = EffectSettings() { didSet { needsSend = true; persist() } }
     var releaseWhenLocked = true {
         didSet { if !restoring && !releaseWhenLocked { setHold(.lock, false) }; persist() }
@@ -97,6 +108,12 @@ final class AppModel {
     private(set) var status: Status = .disconnected("Looking for the keyboard…")
     private(set) var fps: Double = 0
     var presses: [DuckyKit.KeyPress] = []
+    /// Input Monitoring status, for the key-reactive effects.
+    private(set) var keyAccess: KeyEventSource.Access = KeyEventSource.access
+    private(set) var isListeningToKeys = false
+    @ObservationIgnored private let keySource = KeyEventSource()
+    /// History kept for the heatmap (Reactive and Ripple only look at the last seconds).
+    static let pressHistory: (seconds: Double, count: Int) = (20 * 60, 20_000)
 
     @ObservationIgnored let device = DuckyDevice()
     @ObservationIgnored private let hardware: Bool
@@ -131,6 +148,7 @@ final class AppModel {
             MainActor.assumeIsolated { self?.hotPlug(event) }
         }
         observeSystem()
+        updateKeyListening()
     }
 
     // MARK: - Control
@@ -178,6 +196,52 @@ final class AppModel {
         case .disappeared:
             if isConnected { status = .disconnected("Keyboard unplugged. Plug it back in to continue.") }
         }
+    }
+
+    // MARK: - Key presses
+
+    /// `log show --last 10m --predicate 'subsystem == "com.glebovsky.DuckyLights"'`
+    @ObservationIgnored private let keyLog = Logger(subsystem: "com.glebovsky.DuckyLights", category: "keys")
+
+    /// Listen to the Ducky's keys only while an effect needs them, and only with permission.
+    func updateKeyListening() {
+        guard hardware else { return }
+        keyAccess = KeyEventSource.access
+        keyLog.notice("update: effect=\(self.effect.rawValue, privacy: .public) needsKeys=\(self.effect.needsKeyEvents) access=\(String(describing: self.keyAccess), privacy: .public) running=\(self.keySource.isRunning)")
+        if effect.needsKeyEvents && keyAccess == .granted {
+            guard !keySource.isRunning else { isListeningToKeys = true; return }
+            do {
+                try keySource.start { [weak self] led in
+                    MainActor.assumeIsolated { self?.keyDown(led) }
+                }
+                keyLog.notice("key listener started")
+            } catch {
+                keyLog.error("key listener failed: \(String(describing: error), privacy: .public)")
+                keyAccess = .denied
+            }
+        } else {
+            keySource.stop()
+        }
+        isListeningToKeys = keySource.isRunning
+    }
+
+    /// Ask for Input Monitoring: the system prompt the first time, the Settings pane after a "no".
+    func requestKeyAccess() {
+        keyLog.notice("request: access before=\(String(describing: KeyEventSource.access), privacy: .public)")
+        if KeyEventSource.access == .denied {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!)
+        } else {
+            let ok = KeyEventSource.requestAccess()
+            keyLog.notice("IOHIDRequestAccess returned \(ok)")
+        }
+        updateKeyListening()
+    }
+
+    func clearPresses() { presses = [] }
+
+    private func keyDown(_ led: Int) {
+        if presses.isEmpty { keyLog.notice("first key press: led \(led)") }
+        presses.append(KeyPress(ledIndex: led, time: Date().timeIntervalSince(start)))
     }
 
     // MARK: - Painting
@@ -240,7 +304,10 @@ final class AppModel {
 
     private func tick() {
         let t = Date().timeIntervalSince(start)
-        presses.removeAll { t - $0.time > 3 }
+        if let first = presses.first, t - first.time > Self.pressHistory.seconds {
+            presses.removeAll { t - $0.time > Self.pressHistory.seconds }
+        }
+        if presses.count > Self.pressHistory.count { presses.removeFirst(presses.count - Self.pressHistory.count) }
         let frame = EffectRenderer.render(effect, layout: layout, settings: settings, t: t, presses: presses)
         preview = frame
 
@@ -282,7 +349,10 @@ final class AppModel {
         on(dnc, Notification.Name("com.apple.screenIsLocked")) { if $0.releaseWhenLocked { $0.setHold(.lock, true) } }
         on(dnc, Notification.Name("com.apple.screenIsUnlocked")) { $0.setHold(.lock, false) }
         on(nc, NSApplication.didResignActiveNotification) { if $0.releaseInBackground { $0.setHold(.background, true) } }
-        on(nc, NSApplication.didBecomeActiveNotification) { $0.setHold(.background, false) }
+        on(nc, NSApplication.didBecomeActiveNotification) {
+            $0.setHold(.background, false)
+            $0.updateKeyListening()   // the user may have just granted Input Monitoring
+        }
     }
 
     // MARK: - Persistence (UserDefaults, last state only; named profiles are M4)
@@ -328,6 +398,8 @@ final class AppModel {
         guard !hardware else { return }
         status = .connected("Ducky One 2 RGB TKL")
         self.fps = fps
+        keyAccess = .granted
+        isListeningToKeys = true
     }
 
     /// For snapshots: show a given effect at a given time without touching hardware.
