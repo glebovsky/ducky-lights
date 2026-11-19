@@ -18,6 +18,7 @@ There is no official macOS software. Ducky's DuckyRGB tool is Windows-only.
 - **OpenRGB issue #2202**: "Ducky One 2 RGB TKL stops responding to Fn-key and macros" while OpenRGB controls it. https://gitlab.com/CalcProgrammer1/OpenRGB/-/issues/2202
 - **duckylights** (Python, GPL-2.0, PascalDutch). Wireshark captures of DuckyRGB in a VM, a protocol-analysis notebook, and the `41 01` / `41 00` enter/exit discovery. https://github.com/PascalDutch/duckylights
 - **DuckySharp** (C#, MIT, voximity). Same frame format; documents the packet-boundary straddle; its release sequence contains the firmware mode-name table. https://github.com/voximity/DuckySharp
+- Checked 2026-11-19 and found nothing new: `yizhang-paul/ducky_one_2_extreme_feedback` (Go, MIT, says it supports the One 2 TKL) has no HID code and calls a separate HTTP "engine". QMK has `ducky/one2mini` and `ducky/one2sf` but no One 2 TKL, and flashing QMK is a firmware replacement, which is out of scope.
 - The user's own notes: `~/stuff/second-brain/Ducky One 2 TKL lighting.md` (Fn shortcuts and firmware modes).
 
 ## Open questions (answered on hardware, 2026-11-19, macOS 15, Apple silicon)
