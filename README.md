@@ -105,3 +105,7 @@ M0 (hardware bring-up), M1 (usable app), M2 (real macOS app), M3 (effects that r
 ## Credits
 
 The protocol knowledge comes from [OpenRGB](https://gitlab.com/CalcProgrammer1/OpenRGB) (Ducky controller by Adam Honse), [duckylights](https://github.com/PascalDutch/duckylights) and [DuckySharp](https://github.com/voximity/DuckySharp). No code was copied. The LED index table is derived from OpenRGB's.
+
+## License
+
+MIT, see [`LICENSE`](LICENSE).
