@@ -23,6 +23,16 @@ public struct KeyPress: Sendable {
     public init(ledIndex: Int, time: Double) { self.ledIndex = ledIndex; self.time = time }
 }
 
+public struct EffectControls: OptionSet, Sendable {
+    public let rawValue: Int
+    public init(rawValue: Int) { self.rawValue = rawValue }
+    public static let primary = EffectControls(rawValue: 1 << 0)
+    public static let background = EffectControls(rawValue: 1 << 1)
+    public static let speed = EffectControls(rawValue: 1 << 2)
+    public static let brightness = EffectControls(rawValue: 1 << 3)
+    public static let paint = EffectControls(rawValue: 1 << 4)
+}
+
 /// Software-rendered effects. Named after the firmware modes they imitate, because the
 /// firmware's own modes cannot (yet) be selected over USB — see docs/RESEARCH.md.
 public enum EffectKind: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -41,6 +51,19 @@ public enum EffectKind: String, CaseIterable, Identifiable, Codable, Sendable {
 
     /// Needs live key presses (Input Monitoring permission).
     public var needsKeyEvents: Bool { self == .reactive || self == .ripple }
+
+    /// The settings this effect reads, so the UI shows only controls that do something.
+    /// `EffectControlsTests` checks this against `EffectRenderer`.
+    public var controls: EffectControls {
+        switch self {
+        case .off: return []
+        case .staticColor: return [.primary, .brightness]
+        case .custom: return [.paint, .background, .brightness]
+        case .breathing, .radar: return [.primary, .speed, .brightness]
+        case .colorCycle, .wave: return [.speed, .brightness]
+        case .raindrop, .reactive, .ripple: return [.primary, .background, .speed, .brightness]
+        }
+    }
 
     public var isAnimated: Bool {
         switch self {

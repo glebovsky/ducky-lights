@@ -195,11 +195,8 @@ final class AppModel {
         }
     }
 
-    /// The color the palette is editing: the brush in Custom, else the Primary color.
-    var paletteColor: RGB { canPaint ? brush : settings.primary }
-
-    func pickPaletteColor(_ c: RGB) {
-        if canPaint { brush = c } else { settings.primary = c }
+    func rgbBinding(_ path: ReferenceWritableKeyPath<AppModel, RGB>) -> Binding<Color> {
+        Binding(get: { self[keyPath: path].color }, set: { self[keyPath: path] = RGB($0) })
     }
 
     func fillAll(_ c: RGB) {

@@ -87,112 +87,154 @@ struct ControlsPanel: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        @Bindable var model = model
-        HStack(alignment: .top, spacing: 0) {
-            // Left: what the effects use.
-            VStack(alignment: .leading, spacing: 18) {
-                titled("Colors") {
-                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                        colorRow("Primary", \.settings.primary)
-                        colorRow("Secondary", \.settings.secondary)
-                        colorRow("Background", \.settings.background)
-                    }
+        let c = model.effect.controls
+        if c.isEmpty {
+            Text("All LEDs off.").foregroundStyle(.secondary)
+        } else {
+            HStack(alignment: .top, spacing: 0) {
+                VStack(alignment: .leading, spacing: 18) {
+                    if c.contains(.primary) || c.contains(.background) { colors(c) }
+                    if c.contains(.paint) { lighting(c) }
                 }
-                titled("Animation") {
-                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
-                        GridRow {
-                            Text("Speed")
-                            Slider(value: $model.settings.speed, in: 0.1...3).frame(width: 180)
-                            Text(String(format: "%.1f×", model.settings.speed))
-                                .monospacedDigit().foregroundStyle(.secondary)
-                        }
-                        GridRow {
-                            Text("Brightness")
-                            Slider(value: $model.settings.brightness, in: 0...1).frame(width: 180)
-                            Text("\(Int((model.settings.brightness * 100).rounded()))%")
-                                .monospacedDigit().foregroundStyle(.secondary)
-                        }
-                    }
-                    if model.effect.needsKeyEvents {
-                        Text("Reactive effects need key events, not wired up yet (ROADMAP M3).")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.trailing, 24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.trailing, 24)
 
-            // Right: painting keys for the Custom effect.
-            VStack(alignment: .leading, spacing: 10) {
-                titled("Paint") {
-                    Group {
-                    HStack(spacing: 10) {
-                        Picker("Tool", selection: $model.tool) {
-                            ForEach(PaintTool.allCases) { t in
-                                Image(systemName: t.systemImage).help(t.rawValue).tag(t)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .frame(width: 220)
-                        Text(model.tool.rawValue).foregroundStyle(.secondary)
-                    }
-                    HStack {
-                        Text("Brush")
-                        ColorPicker("Brush", selection: rgbBinding(\.brush), supportsOpacity: false).labelsHidden()
-                        Spacer().frame(width: 16)
-                        Button("Fill all") { model.fillAll(model.brush) }
-                        Button("Clear") { model.clearPaint() }
-                    }
-                    }
-                    .disabled(!model.canPaint)
-                    // Always enabled: in Custom it picks the brush, otherwise the Primary color
-                    // (the Static color, and the main color of most effects).
-                    HStack(spacing: 6) {
-                        ForEach(AppModel.palette, id: \.self) { c in
-                            let picked = model.paletteColor == c
-                            Circle().fill(c.color)
-                                .overlay(Circle().stroke(picked ? Color.accentColor : .secondary.opacity(0.4),
-                                                         lineWidth: picked ? 2.5 : 1))
-                                .frame(width: 22, height: 22)
-                                .contentShape(Circle())
-                                .onTapGesture { model.pickPaletteColor(c) }
-                                .help(model.canPaint ? "Brush color" : "Primary color")
-                        }
-                    }
-                    Text(model.canPaint
-                         ? "Click or drag over keys. Changes show on the keyboard right away."
-                         : "The palette sets the Primary color. Pick Custom (paint keys) to paint single keys.")
-                        .font(.caption).foregroundStyle(.secondary)
-                        // Not fixedSize: at the narrow widths SwiftUI probes for the window's
-                        // minimum size, a fixed-height wrapping text grows very tall.
-                        .lineLimit(3)
+                VStack(alignment: .leading, spacing: 18) {
+                    if c.contains(.paint) { PaintSection() } else { lighting(c) }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 24)
+                // As an overlay the divider is only as tall as this column. A bare vertical
+                // Divider in the HStack is greedy and broke the window layout.
+                .overlay(alignment: .leading) { Divider() }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 24)
-            // As an overlay the divider is only as tall as this column.
-            .overlay(alignment: .leading) { Divider() }
         }
     }
 
     @ViewBuilder
-    private func titled<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+    private func colors(_ c: EffectControls) -> some View {
+        @Bindable var model = model
+        Titled("Colors") {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                if c.contains(.primary) {
+                    GridRow {
+                        Text("Color")
+                        ColorPicker("Color", selection: model.rgbBinding(\.settings.primary), supportsOpacity: false)
+                            .labelsHidden()
+                    }
+                }
+                if c.contains(.background) {
+                    GridRow {
+                        Text("Background")
+                        ColorPicker("Background", selection: model.rgbBinding(\.settings.background), supportsOpacity: false)
+                            .labelsHidden()
+                    }
+                }
+            }
+            if c.contains(.primary) {
+                PaletteRow(selection: $model.settings.primary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func lighting(_ c: EffectControls) -> some View {
+        @Bindable var model = model
+        Titled(c.contains(.speed) ? "Animation" : "Lighting") {
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                if c.contains(.speed) {
+                    GridRow {
+                        Text("Speed")
+                        Slider(value: $model.settings.speed, in: 0.1...3).frame(width: 180)
+                        Text(String(format: "%.1f×", model.settings.speed))
+                            .monospacedDigit().foregroundStyle(.secondary)
+                    }
+                }
+                if c.contains(.brightness) {
+                    GridRow {
+                        Text("Brightness")
+                        Slider(value: $model.settings.brightness, in: 0...1).frame(width: 180)
+                        Text("\(Int((model.settings.brightness * 100).rounded()))%")
+                            .monospacedDigit().foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if model.effect.needsKeyEvents {
+                Text("Reacts to key presses, which aren't wired up yet (ROADMAP M3).")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// Painting tools, only shown for the Custom effect.
+private struct PaintSection: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        @Bindable var model = model
+        Titled("Paint") {
+            HStack(spacing: 10) {
+                Picker("Tool", selection: $model.tool) {
+                    ForEach(PaintTool.allCases) { t in
+                        Image(systemName: t.systemImage).help(t.rawValue).tag(t)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 220)
+                Text(model.tool.rawValue).foregroundStyle(.secondary)
+            }
+            PaletteRow(selection: $model.brush)
+            HStack {
+                Text("Brush")
+                ColorPicker("Brush", selection: model.rgbBinding(\.brush), supportsOpacity: false).labelsHidden()
+                Spacer().frame(width: 16)
+                Button("Fill all") { model.fillAll(model.brush) }
+                Button("Clear") { model.clearPaint() }
+            }
+            Text("Click or drag over keys. Unpainted keys show the background color.")
+                .font(.caption).foregroundStyle(.secondary)
+                // Not fixedSize: at the narrow widths SwiftUI probes for the window's minimum
+                // size, a fixed-height wrapping text grows very tall and breaks the layout.
+                .lineLimit(3)
+        }
+    }
+}
+
+/// One-click colors.
+private struct PaletteRow: View {
+    @Binding var selection: RGB
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(AppModel.palette, id: \.self) { c in
+                let picked = selection == c
+                Circle().fill(c.color)
+                    .overlay(Circle().stroke(picked ? Color.accentColor : .secondary.opacity(0.4),
+                                             lineWidth: picked ? 2.5 : 1))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Circle())
+                    .onTapGesture { selection = c }
+            }
+        }
+    }
+}
+
+private struct Titled<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: Content
+
+    init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).font(.headline)
-            content()
+            content
         }
-    }
-
-    private func colorRow(_ title: String, _ path: ReferenceWritableKeyPath<AppModel, RGB>) -> some View {
-        GridRow {
-            Text(title)
-            ColorPicker(title, selection: rgbBinding(path), supportsOpacity: false).labelsHidden()
-        }
-    }
-
-    private func rgbBinding(_ path: ReferenceWritableKeyPath<AppModel, RGB>) -> Binding<Color> {
-        Binding(get: { model[keyPath: path].color }, set: { model[keyPath: path] = RGB($0) })
     }
 }
 

@@ -14,10 +14,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return args[i + 1]
     }()
 
-    let model = AppModel(hardware: AppDelegate.snapshotDir == nil)
+    let model = AppModel(hardware: AppDelegate.snapshotDir == nil && AppDelegate.iconPath == nil)
     private var signalSources: [DispatchSourceSignal] = []
 
+    /// `DuckyLights --render-icon <file.png>` writes the 1024×1024 app icon (scripts/make-icon.sh).
+    static let iconPath: String? = {
+        let args = CommandLine.arguments
+        guard let i = args.firstIndex(of: "--render-icon"), i + 1 < args.count else { return nil }
+        return args[i + 1]
+    }()
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let path = Self.iconPath {
+            Snapshots.renderIcon(to: URL(fileURLWithPath: path))
+            exit(0)
+        }
         if let dir = Self.snapshotDir {
             Snapshots.write(to: URL(fileURLWithPath: dir))
             exit(0)
@@ -81,9 +92,50 @@ struct DuckyLightsApp: App {
     }
 }
 
+/// The app icon: a duck lit like the keyboard's Rainbow Wave, on a dark keycap-style tile.
+/// Drawn on Apple's 1024 grid (824 pt tile, transparent margin for the shadow).
+struct AppIconView: View {
+    private var rainbow: some View {
+        LinearGradient(colors: [RGB(255, 0, 200), RGB(255, 40, 40), RGB(255, 170, 0), RGB(255, 235, 0),
+                                RGB(40, 255, 90), RGB(0, 210, 255), RGB(70, 90, 255)].map(\.color),
+                       startPoint: UnitPoint(x: 0.05, y: 0.3), endPoint: UnitPoint(x: 0.95, y: 0.7))
+    }
+
+    private var duck: some View {
+        Image(nsImage: DuckIcon.image(size: 600)).resizable().frame(width: 600, height: 600)
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 185, style: .continuous)
+                .fill(LinearGradient(colors: [Color(white: 0.21), Color(white: 0.07)], startPoint: .top, endPoint: .bottom))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 185, style: .continuous)
+                        .strokeBorder(.white.opacity(0.10), lineWidth: 4))
+                .frame(width: 824, height: 824)
+                .shadow(color: .black.opacity(0.45), radius: 24, y: 14)
+            // Glow behind the duck, like LEDs bleeding onto the plate.
+            rainbow.frame(width: 600, height: 600).mask(duck).blur(radius: 46).opacity(0.85)
+            rainbow.frame(width: 600, height: 600).mask(duck)
+        }
+        .frame(width: 1024, height: 1024)
+    }
+}
+
 /// Offscreen renders for checking the UI without Screen Recording permission.
 @MainActor
 enum Snapshots {
+    static func renderIcon(to url: URL) {
+        let r = ImageRenderer(content: AppIconView())
+        r.scale = 1
+        guard let img = r.nsImage, let tiff = img.tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]) else {
+            print("icon render failed"); exit(1)
+        }
+        try? png.write(to: url)
+        print(url.path)
+    }
+
     static func write(to dir: URL) {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let model = AppModel(hardware: false)
