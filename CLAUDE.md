@@ -20,11 +20,13 @@ Sources/DuckyKit/                 Library, no UI
   Effects/Effects.swift           software effects (static, custom paint, breathing, wave, radar, reactive, ripple, heatmap)
   HIDKeyMap.swift                 HID keyboard usage → LED label
   Profiles.swift                  Profile, ProfileFile (JSON format), ProfileStore
+  FirmwareShortcuts.swift         the keyboard's own Fn/macro shortcuts (shown only, never sent); mirrors docs/SHORTCUTS.md
   KeyEventSource.swift            Ducky key-downs via IOHIDManager (Input Monitoring)
 Sources/DuckyLights/              SwiftUI app (AppModel = 60 fps render/send loop + release holds)
 Packaging/Info.plist              bundle plist template for scripts/build-app.sh
   KeyboardView.swift              Canvas-drawn board, painting gestures, keycap legends
   MenuBar.swift                   menu bar duck (icon drawn in code) + its menu
+  ShortcutsView.swift             Shortcuts page: firmware shortcut list, media-key recording guide, key highlight
 Sources/duckyctl/                 CLI for bring-up: list / solid / key / effect / release / frame
 Tests/DuckyKitTests/              XCTest; GoldenVectors.swift is generated
 scripts/probe-usb.sh              identify the keyboard over USB
@@ -46,6 +48,7 @@ python3 tools/ducky.py vectors > Tests/DuckyKitTests/GoldenVectors.swift   # aft
 ```
 
 ## Status / caveats
+- Shortcuts page done (2026-11-24, issues #1 and #2): data from Ducky's One Series manual, in `docs/SHORTCUTS.md`. The manual PDF isn't kept in the repo. The One 2 has no default media keys; they're recorded as macros (Fn + Win + A–G). Recording them on the real board is unverified.
 - M4 profiles done (2026-11-19). The owner parked more effects and the URL scheme. Ask what's next.
 - M3 done (2026-11-19): Reactive/Ripple/Heatmap from the Ducky's own key events.
 - Key-event diagnostics: `/usr/bin/log show --last 10m --predicate 'subsystem == "com.glebovsky.DuckyLights"'`. Permission problems are almost always a stale TCC entry from an old signature (see RESEARCH.md).

@@ -3,8 +3,10 @@ import SwiftUI
 
 /// The board drawn like the real thing: dark case, plate lit by the LEDs bleeding between
 /// keys, sculpted black caps with shine-through legends. Click or drag to paint.
+/// With `highlight` set it's display-only: those keys light up white and the rest dim.
 struct KeyboardView: View {
     @Environment(AppModel.self) private var model
+    var highlight: Set<Int>? = nil
     @State private var hovered: KeyInfo?
     @State private var lastPainted: Int?
 
@@ -18,10 +20,9 @@ struct KeyboardView: View {
             let m = Metrics(size: size, layout: layout)
             drawCase(&ctx, m)
             drawGlow(&ctx, m, layout)
-            let targets = model.canPaint ? (hovered.map { model.targets(for: $0) } ?? []) : []
+            let targets = canPaint ? (hovered.map { model.targets(for: $0) } ?? []) : (highlight ?? [])
             for key in layout.keys {
-                drawKey(&ctx, m, key, led: model.preview[key.ledIndex] ?? .black,
-                        highlighted: targets.contains(key.ledIndex))
+                drawKey(&ctx, m, key, led: shown(key), highlighted: targets.contains(key.ledIndex))
             }
         }
         .aspectRatio((layout.width + 2 * Self.casePadding) / (layout.height + 2 * Self.casePadding),
@@ -41,8 +42,17 @@ struct KeyboardView: View {
                     }
             }
             // Outside Custom the board is display-only, so a stray click can't switch effects.
-            .allowsHitTesting(model.canPaint)
+            .allowsHitTesting(canPaint)
         }
+    }
+
+    private var canPaint: Bool { highlight == nil && model.canPaint }
+
+    /// The color a key is drawn with: the live preview, or white/dimmed in highlight mode.
+    private func shown(_ key: KeyInfo) -> RGB {
+        let led = model.preview[key.ledIndex] ?? .black
+        guard let highlight else { return led }
+        return highlight.contains(key.ledIndex) ? RGB(255, 255, 255) : led.mixed(with: .black, 0.8)
     }
 
     private func key(at p: CGPoint, size: CGSize) -> KeyInfo? {
@@ -90,7 +100,8 @@ struct KeyboardView: View {
         ctx.drawLayer { glow in
             glow.addFilter(.blur(radius: m.unit * 0.2))
             for key in layout.keys {
-                guard let led = model.preview[key.ledIndex], led != .black else { continue }
+                let led = shown(key)
+                guard led != .black else { continue }
                 glow.fill(capPath(key, m, inset: 0.02), with: .color(led.color.opacity(0.85)))
             }
         }

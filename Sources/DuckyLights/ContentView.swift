@@ -5,11 +5,11 @@ import SwiftUI
 enum SidebarItem: Hashable {
     case effect(EffectKind)
     case profile(UUID)
+    case shortcuts
 }
 
 struct ContentView: View {
     @Environment(AppModel.self) private var model
-    @State private var showHardwareModes = false
 
     var body: some View {
         @Bindable var model = model
@@ -20,27 +20,12 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(210)
                 .toolbar(removing: .sidebarToggle)
         } detail: {
-            VStack(alignment: .leading, spacing: 16) {
-                StatusBar(showHardwareModes: $showHardwareModes)
-                KeyboardView()
-                    // Finite ideal size: an aspect-fit view offered infinite width reports
-                    // infinite size, and the window then lays out taller than itself.
-                    .frame(maxWidth: 1600)
-                ControlsPanel()
-                // Nothing vertically greedy in this column (Spacer, a bare vertical Divider):
-                // it made the content lay out taller than the window, hiding the top under
-                // the title bar.
-            }
-            .padding(20)
-            .background { if LayoutDebug.on { LayoutDebug.probe("detail") } }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            // Pinned to the bottom, in the empty space under the controls, so nothing above
-            // it moves when it appears. (In the toolbar it changed the title bar's height.)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if model.activeProfileEdited { ProfileEditedBar() }
+            if model.showingShortcuts {
+                ShortcutsPage()
+            } else {
+                lighting
             }
         }
-        .sheet(isPresented: $showHardwareModes) { HardwareModesView() }
         .alert("Profiles", isPresented: Binding(get: { model.profileMessage != nil },
                                                set: { if !$0 { model.profileMessage = nil } })) {
             Button("OK") { model.profileMessage = nil }
@@ -48,6 +33,28 @@ struct ContentView: View {
             Text(model.profileMessage ?? "")
         }
         .background { if LayoutDebug.on { LayoutDebug.probe("root") } }
+    }
+
+    private var lighting: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            StatusBar()
+            KeyboardView()
+                // Finite ideal size: an aspect-fit view offered infinite width reports
+                // infinite size, and the window then lays out taller than itself.
+                .frame(maxWidth: 1600)
+            ControlsPanel()
+            // Nothing vertically greedy in this column (Spacer, a bare vertical Divider):
+            // it made the content lay out taller than the window, hiding the top under
+            // the title bar.
+        }
+        .padding(20)
+        .background { if LayoutDebug.on { LayoutDebug.probe("detail") } }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Pinned to the bottom, in the empty space under the controls, so nothing above
+        // it moves when it appears. (In the toolbar it changed the title bar's height.)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if model.activeProfileEdited { ProfileEditedBar() }
+        }
     }
 
     static func icon(_ k: EffectKind) -> String {
@@ -69,7 +76,6 @@ struct ContentView: View {
 
 struct StatusBar: View {
     @Environment(AppModel.self) private var model
-    @Binding var showHardwareModes: Bool
 
     var body: some View {
         HStack {
@@ -91,7 +97,6 @@ struct StatusBar: View {
                 Spacer()
                 Button("Retry") { model.connect() }
             }
-            Button("Hardware modes…") { showHardwareModes = true }
         }
     }
 }
@@ -279,46 +284,6 @@ private struct Titled<Content: View>: View {
 
 /// The keyboard's built-in (firmware) modes. They can't be selected over USB yet, so this
 /// sheet documents the Fn shortcuts and lets the user hand control back to the firmware.
-struct HardwareModesView: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-
-    private let shortcuts: [(String, String)] = [
-        ("Fn + F10", "Cycle modes: Wave, Color Cycle, Raindrop, Ripple, Reactive, Breathing, Radar, Full Backlit, Off"),
-        ("Hold Fn + F10 (3 s)", "All backlighting off"),
-        ("Fn + ← / →", "Effect speed"),
-        ("Fn + ↑ / ↓", "Brightness"),
-        ("Fn + F5 / F6 / F7", "Adjust red / green / blue (single-color modes)"),
-        ("Fn + F8", "Reset color"),
-        ("Fn + Space", "Color palette — tap a key to pick its color"),
-        ("Fn + F11 / F12", "Custom Mode 1 / 2 (On, Breathing, Off)"),
-        ("Hold Fn + PrtSc / Pause (3 s)", "Record CM1 / CM2, save with Caps Lock + ScrLk"),
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Keyboard firmware modes").font(.title2.bold())
-            Text("These run on the keyboard itself and persist without the app. Selecting them from the Mac isn't supported yet (protocol not reverse-engineered — see docs/RESEARCH.md). Release control, then use the shortcuts:")
-                .foregroundStyle(.secondary)
-            Grid(alignment: .leading, verticalSpacing: 6) {
-                ForEach(shortcuts, id: \.0) { s in
-                    GridRow {
-                        Text(s.0).font(.body.monospaced())
-                        Text(s.1)
-                    }
-                }
-            }
-            HStack {
-                Spacer()
-                Button("Release to keyboard") { model.releaseToHardware(); dismiss() }
-                Button("Close") { dismiss() }.keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(24)
-        .frame(width: 640)
-    }
-}
-
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
 
@@ -422,6 +387,9 @@ private struct ProfileSidebar: View {
                 }
                 .onMove { model.moveProfiles(fromOffsets: $0, toOffset: $1) }
             }
+            Section("Keyboard") {
+                Label("Shortcuts", systemImage: "command").tag(SidebarItem.shortcuts)
+            }
         }
         .safeAreaInset(edge: .bottom) {
             HStack(spacing: 4) {
@@ -451,14 +419,24 @@ private struct ProfileSidebar: View {
 
     private var selection: Binding<SidebarItem?> {
         Binding(
-            get: { model.activeProfileID.map { .profile($0) } ?? .effect(model.effect) },
+            get: { model.showingShortcuts ? .shortcuts : lightingItem },
             set: { item in
+                guard let item else { return }
+                if item == .shortcuts { model.showingShortcuts = true; return }
+                model.showingShortcuts = false
+                // Coming back from Shortcuts to the current look: don't re-apply it, which
+                // would throw away a profile's unsaved tweaks.
+                guard item != lightingItem else { return }
                 switch item {
                 case .effect(let k): model.selectEffect(k)
                 case .profile(let id): model.applyProfile(id)
-                case nil: break
+                case .shortcuts: break
                 }
             })
+    }
+
+    private var lightingItem: SidebarItem {
+        model.activeProfileID.map { .profile($0) } ?? .effect(model.effect)
     }
 
     @ViewBuilder

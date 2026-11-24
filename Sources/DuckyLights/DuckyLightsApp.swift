@@ -237,6 +237,15 @@ enum Snapshots {
         model.previewFrame(.heatmap, at: Double(presses.count) * 0.1)
         shot("app-heatmap.png")
 
+        // Shortcuts page, board released (as it must be for the shortcuts to work), with the
+        // Fn + F10 row picked so its keys light up.
+        model.selectEffect(.wave)
+        model.previewFrame(.wave, at: 1.3)
+        model.pretendReleased()
+        model.showingShortcuts = true
+        model.shortcutSelection = FirmwareShortcuts.all.first { $0.keys == "Fn + F10" }?.id
+        shot("app-shortcuts.png")
+
         window.close()
     }
 
@@ -277,7 +286,7 @@ enum Snapshots {
                 print("\(name) in \(size): \(hc.sizeThatFits(in: size))")
             }
         }
-        measure("status", StatusBar(showHardwareModes: .constant(false)))
+        measure("status", StatusBar())
         measure("keyboard", KeyboardView())
         measure("controls", ControlsPanel())
         measure("controls-fixed", ControlsPanel().fixedSize(horizontal: false, vertical: true))

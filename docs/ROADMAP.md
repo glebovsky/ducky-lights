@@ -37,6 +37,7 @@ Done 2026-11-19. The owner checked Reactive, Ripple, Heatmap and normal typing o
 
 ## M4 — Profiles & extras
 - [x] Named profiles (effect + settings + paint) saved as JSON in Application Support. Import/export. Done 2026-11-19 and checked by the owner. `ProfileStore`/`ProfileFile` in DuckyKit, with tests. The file is human-editable: hex colors, effects by name, painted keys by label. Profiles live in the sidebar (apply, edited marker, bottom bar with Revert/Update, rename/export/delete) and in the menu bar. The sidebar toggle was removed at the owner's request: reopening the sidebar stuttered in SwiftUI even with an empty detail column.
+- [x] Keyboard shortcuts page (GitHub issues #1 and #2, 2026-11-24). Every firmware shortcut from Ducky's manual, in the sidebar and the duck menu. The hovered shortcut's keys light up on the preview, and a guide walks through recording media keys (the One 2 has none by default). The data is in `docs/SHORTCUTS.md` and `FirmwareShortcuts`. The app shows these only and never sends them.
 - [ ] (Parked by the owner, 2026-11-19.) More effects: gradient, Snake, Laser, audio-reactive (system audio needs ScreenCaptureKit), CPU-load bar on the F-row, notification flashes.
 - [ ] A small local API or URL scheme (`duckylights://effect/wave`) for Shortcuts/Raycast.
 

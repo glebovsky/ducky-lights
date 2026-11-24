@@ -14,14 +14,17 @@ Pick an effect, tune its color, speed and brightness, or paint keys one by one. 
 
 ![A profile with unsaved changes: Revert or Update Profile](docs/images/app-profile-edited.png)
 
+![Keyboard shortcuts: the keys of the picked shortcut light up, with a guide for recording media keys](docs/images/app-shortcuts.png)
+
 ## Features
 
 - **Effects:** Static, Custom (paint keys), Breathing, Color Cycle, Rainbow Wave, Radar, Raindrop, Off. Each effect shows only the controls it uses.
 - **Effects that react to typing:** Reactive (pressed keys flash and fade), Ripple (rings spread from each key), Typing Heatmap (the keys you use most glow hot, then cool down). Only keys on the Ducky count, not the laptop keyboard.
 - **Painting** (Custom effect): brush, eraser, eyedropper, fill row, fill column. Click or drag over keys. Hovering shows which keys a click will change.
 - **Profiles:** save a look (effect, colors, painted keys) under a name, and switch between looks from the sidebar or the menu bar duck. Tweak an active profile and a bar at the bottom offers **Revert** or **Update Profile**. Right-click to rename, export or delete. Import and export are in the sidebar's ⋯ menu.
+- **Keyboard shortcuts page:** every shortcut the keyboard's firmware knows (lighting, custom lighting, macros, Win lock, reset…). Hover one and its keys light up on the preview. The One 2 has no media keys until you record them, so the page has a step-by-step guide: pick play/pause, volume or another function and a key. The full list, with sources, is in [`docs/SHORTCUTS.md`](docs/SHORTCUTS.md).
 - **Live preview** drawn like the real board: shine-through legends, LED light bleeding between the keys. ANSI or ISO layout (Settings).
-- **Menu bar duck:** open the window, switch effects or profiles, hand control back to the keyboard, quit. Closing the window keeps the app running there.
+- **Menu bar duck:** open the window or the shortcuts page, switch effects or profiles, hand control back to the keyboard, quit. Closing the window keeps the app running there.
 - **Plays nice with the keyboard:** it hands lighting back to the firmware on quit, Ctrl-C/kill, sleep and screen lock, and takes it back on wake and unlock. Unplug and replug the keyboard and it carries on by itself.
 - **Launch at login**, with an option to start quietly in the menu bar.
 - Smooth animation: rendered at 60 fps. The USB link tops out around 95 fps.
@@ -58,7 +61,7 @@ Run the same command again to update. It quits the running copy first, which han
   ```
 
   Importing always adds copies (it never overwrites), and anything unrecognized is skipped and listed. If `profiles.json` can't be read, it's kept aside as `profiles.unreadable-….json` rather than overwritten.
-- **Release to keyboard** (window or duck menu) gives lighting back to the keyboard's own modes. While the app is in control, the keyboard's Fn lighting shortcuts (Fn+F10 and friends) don't respond. That's how the keyboard behaves, not a bug. **Hardware modes…** lists those shortcuts.
+- **Release to keyboard** (window or duck menu) gives lighting back to the keyboard's own modes. While the app is in control, the keyboard's Fn lighting shortcuts (Fn+F10 and friends) don't respond. That's how the keyboard behaves, not a bug. **Shortcuts** in the sidebar lists them.
 - **Input Monitoring shows "on" but the app says it's off:** that entry belongs to an older build with a different signature. Remove it with − in Privacy & Security (or run `tccutil reset ListenEvent com.glebovsky.DuckyLights`), then allow again.
 - If the app ever crashes hard and leaves the board stuck, run `swift run duckyctl release`.
 

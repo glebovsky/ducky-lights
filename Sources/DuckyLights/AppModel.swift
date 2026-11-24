@@ -108,6 +108,10 @@ final class AppModel {
     private(set) var activeProfileID: UUID? { didSet { persist() } }
     /// Shown as an alert: failed saves, unreadable files, import results.
     var profileMessage: String?
+    /// The window shows the keyboard's own shortcuts instead of the lighting controls.
+    var showingShortcuts = false
+    /// Shortcut row picked on that page (`FirmwareShortcut.id`); its keys light up in the preview.
+    var shortcutSelection: String?
 
     /// Color used by the brush in Custom mode.
     var brush: RGB = RGB(255, 0, 128)
@@ -506,6 +510,12 @@ final class AppModel {
         self.fps = fps
         keyAccess = .granted
         isListeningToKeys = true
+    }
+
+    /// For screenshots: look released to the keyboard, as the user would see it.
+    func pretendReleased() {
+        guard !hardware else { return }
+        status = .released(Hold.user.reason)
     }
 
     /// For snapshots: show a given effect at a given time without touching hardware.

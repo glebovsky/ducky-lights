@@ -64,6 +64,11 @@ struct MenuBarMenu: View {
             NSApp.activate(ignoringOtherApps: true)
         }
         .keyboardShortcut("o")
+        Button("Keyboard Shortcuts…") {
+            model.showingShortcuts = true
+            openWindow(id: DuckyLightsApp.mainWindowID)
+            NSApp.activate(ignoringOtherApps: true)
+        }
         Divider()
         Picker("Effect", selection: Binding(get: { model.activeProfileID == nil ? model.effect : nil },
                                             set: { if let k = $0 { model.selectEffect(k) } })) {
