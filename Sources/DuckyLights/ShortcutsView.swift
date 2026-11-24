@@ -22,6 +22,10 @@ struct ShortcutsPage: View {
                 MediaSetupGuide(function: $function, trigger: $trigger, hovered: $hovered)
                     .frame(width: 300)
                 ShortcutList(selection: $model.shortcutSelection, hovered: $hovered)
+                    // No white box: the list sits on the window background, set off from the
+                    // guide by a divider (an overlay, not a bare Divider in the HStack — see CLAUDE.md).
+                    .scrollContentBackground(.hidden)
+                    .overlay(alignment: .leading) { Divider().offset(x: -10) }
             }
             .frame(maxHeight: .infinity, alignment: .top)
         }
@@ -125,14 +129,18 @@ private struct ShortcutList: View {
 
     var body: some View {
         List(selection: $selection) {
+            // Group titles are plain (untagged, so unselectable) rows rather than Section headers:
+            // pinned section headers get their own opaque background strip.
             ForEach(FirmwareShortcut.Group.allCases) { group in
-                Section(group.rawValue) {
-                    ForEach(FirmwareShortcuts.all.filter { $0.group == group }) { s in
-                        row(s).tag(s.id)
-                            .onHover { inside in
-                                if inside { hovered = s.id } else if hovered == s.id { hovered = nil }
-                            }
-                    }
+                Text(group.rawValue)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                    .padding(.top, group == FirmwareShortcut.Group.allCases.first ? 0 : 10)
+                    .listRowSeparator(.hidden)
+                ForEach(FirmwareShortcuts.all.filter { $0.group == group }) { s in
+                    row(s).tag(s.id)
+                        .onHover { inside in
+                            if inside { hovered = s.id } else if hovered == s.id { hovered = nil }
+                        }
                 }
             }
         }
